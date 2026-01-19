@@ -13,7 +13,6 @@
     export let data: PageData;
 
     let didApplyPreset = false;
-    console.log('>>>', data);
 
     let rawJson = `{
   "billName": "Pizza 4P's",
