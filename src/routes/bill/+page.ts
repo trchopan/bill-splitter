@@ -1,6 +1,6 @@
 import type {PageLoad} from './$types';
-import {base64UrlDecodeUtf8} from '$lib/bill/utils';
 import {validateSharedBill} from '$lib/bill/shared-validate';
+import {decodeFromUrl} from '$lib/bill/codec';
 
 export const load: PageLoad = ({url}) => {
     const b = url.searchParams.get('b');
@@ -8,21 +8,14 @@ export const load: PageLoad = ({url}) => {
         return {ok: false as const, errors: ['Missing query parameter: b'], shared: null};
     }
 
-    let decoded: string;
+    let shared: any;
     try {
-        decoded = base64UrlDecodeUtf8(b);
-    } catch {
-        return {ok: false as const, errors: ['Invalid base64url payload in b'], shared: null};
+        shared = decodeFromUrl(b);
+    } catch (e: any) {
+        return {ok: false as const, errors: ['Invalid bill payload: ' + e.message], shared: null};
     }
 
-    let obj: unknown;
-    try {
-        obj = JSON.parse(decoded);
-    } catch {
-        return {ok: false as const, errors: ['Decoded payload is not valid JSON'], shared: null};
-    }
-
-    const res = validateSharedBill(obj);
+    const res = validateSharedBill(shared);
     if (!res.ok) return {ok: false as const, errors: res.errors, shared: null};
 
     return {ok: true as const, errors: [] as string[], shared: res.value};

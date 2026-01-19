@@ -6,7 +6,7 @@ import BillPage from './+page.svelte';
 describe('bill/+page.svelte', () => {
     it('should render error if data is invalid', async () => {
         const data = {
-            ok: false,
+            ok: false as const,
             errors: ['Invalid link'],
             shared: null,
         };
@@ -17,10 +17,10 @@ describe('bill/+page.svelte', () => {
 
     it('should render bill details and allow selection', async () => {
         const shared = {
-            v: 1,
+            v: 1 as const,
             billName: 'Test Bill',
-            countryCode: 'VN',
-            currencyNumeric: '704',
+            countryCode: 'VN' as const,
+            currencyNumeric: '704' as const,
             owner: {bank: 'VCB', accountNumber: '123'},
             items: [
                 {id: '1', name: 'Item 1', qty: 2, unitPrice: 1000},
@@ -28,7 +28,7 @@ describe('bill/+page.svelte', () => {
             ],
             extras: {tax: 0, tip: 0, discount: 0},
         };
-        const data = {ok: true, shared};
+        const data = {ok: true as const, errors: [], shared};
 
         render(BillPage, {data});
 
@@ -61,17 +61,17 @@ describe('bill/+page.svelte', () => {
 
     it('should calculate extras share correctly', async () => {
         const shared = {
-            v: 1,
+            v: 1 as const,
             billName: 'Extras Bill',
-            countryCode: 'VN',
-            currencyNumeric: '704',
+            countryCode: 'VN' as const,
+            currencyNumeric: '704' as const,
             owner: {bank: 'VCB', accountNumber: '123'},
             items: [
                 {id: '1', name: 'Item 1', qty: 1, unitPrice: 1000},
             ],
             extras: {tax: 100, tip: 0, discount: 0}, // 10% effectively
         };
-        const data = {ok: true, shared};
+        const data = {ok: true as const, errors: [], shared};
 
         render(BillPage, {data});
 

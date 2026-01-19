@@ -2,7 +2,7 @@
     import type {PageData} from './$types';
     import QRCode from 'qrcode';
     import {generateQrEmvPayload} from '$lib/emvcode';
-    import {base64UrlEncodeUtf8} from '$lib/bill/utils';
+    import LZString from 'lz-string';
 
     export let data: PageData;
 
@@ -102,7 +102,7 @@
                 scale: 6,
             });
 
-            const d = base64UrlEncodeUtf8(payload);
+            const d = LZString.compressToEncodedURIComponent(payload);
             qrOnlyUrl = `${location.origin}/qr?d=${d}`;
         } catch (e: any) {
             error = e?.message ?? 'Failed to generate QR payload.';

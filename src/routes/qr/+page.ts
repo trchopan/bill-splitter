@@ -1,5 +1,5 @@
 import type {PageLoad} from './$types';
-import {base64UrlDecodeUtf8} from '$lib/bill/utils';
+import LZString from 'lz-string';
 
 export const load: PageLoad = ({url}) => {
     const d = url.searchParams.get('d');
@@ -11,11 +11,15 @@ export const load: PageLoad = ({url}) => {
         };
     }
 
-    let payload: string;
+    let payload: string | null = null;
     try {
-        payload = base64UrlDecodeUtf8(d);
+        payload = LZString.decompressFromEncodedURIComponent(d);
     } catch {
-        return {ok: false as const, errors: ['Invalid base64url payload in d'], payload: null};
+        // ignore
+    }
+
+    if (!payload) {
+        return {ok: false as const, errors: ['Invalid compressed payload in d'], payload: null};
     }
 
     // Very light sanity checks (don’t overdo edge cases in v1)

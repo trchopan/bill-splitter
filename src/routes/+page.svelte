@@ -3,10 +3,10 @@
     import {validateAiBill} from '$lib/bill/validate';
     import {
         buildSharedBillPayload,
-        base64UrlEncodeUtf8,
         computeItemsTotal,
         toIntVnd,
     } from '$lib/bill/utils';
+    import {encodeForUrl} from '$lib/bill/codec';
     import {BANKS} from '$lib/emvcode/EMVCodeUtil';
     import type {PageData} from './$types';
 
@@ -71,6 +71,9 @@
         }
 
         parsed = res.value;
+        if (!parsed.extras) {
+            parsed.extras = { tax: 0, tip: 0, discount: 0 };
+        }
     }
 
     $: canGenerate =
@@ -93,7 +96,7 @@
             ownerAccountNumber,
         });
 
-        const encoded = base64UrlEncodeUtf8(JSON.stringify(sharePayload));
+        const encoded = encodeForUrl(sharePayload);
         // SvelteKit route we'll create next: /bill?b=...
         shareUrl = `${location.origin}/bill?b=${encoded}`;
     }
