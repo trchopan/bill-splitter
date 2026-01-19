@@ -1,38 +1,88 @@
-# sv
+# Bill Splitter
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A SvelteKit application designed to simplify splitting bills and facilitating payments via Payment QR code (EMVCo) standard. This tool allows users to easily convert receipt data into a digital bill, share it with friends, and generate payment QR codes for seamless bank transfers.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- **AI-Assisted Receipt Parsing**: Provides a specialized prompt to extract receipt data (items, prices, tax, tip) into a strict JSON format using multimodal AI tools like ChatGPT or Claude.
+- **Bill Creation**: Users can verify and edit the extracted bill data, and add their bank account details.
+- **Shareable Bill Links**: Generates a stateless, URL-encoded link to share with friends. No database required.
+- **Interactive Item Selection**: Friends can open the link, select the specific items and quantities they consumed.
+- **Automatic Split Calculation**: Automatically calculates the individual share, proportionally distributing tax, tips, and discounts based on the selected items.
+- **Payment QR Code**: Generates a dynamic Payment QR Code (EMVCo compatible) code for the exact calculated amount, enabling direct payment to the bill owner's bank account via banking apps.
+- **Privacy Focused**: All data is stored in the URL or local browser state. No server-side storage.
 
-```sh
-# create a new project in the current directory
-npx sv create
+## Tech Stack
 
-# create a new project in my-app
-npx sv create my-app
-```
+- **Framework**: [SvelteKit](https://kit.svelte.dev/) (Svelte 5)
+- **Language**: TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **QR Generation**: `qrcode`
+- **Validation**: `ajv`
+- **Testing**: Vitest (Unit), Playwright (E2E)
 
-## Developing
+## Getting Started
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+### Prerequisites
 
-```sh
+- Node.js (LTS version recommended)
+- npm
+
+### Installation
+
+1.  Clone the repository:
+
+    ```bash
+    git clone <repository-url>
+    cd bill-splitter
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+### Development
+
+Start the development server:
+
+```bash
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+The application will be available at `http://localhost:5173`.
 
-To create a production version of your app:
+### Building for Production
 
-```sh
+To create a production version of the app:
+
+```bash
 npm run build
 ```
 
 You can preview the production build with `npm run preview`.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Usage Guide
+
+1.  **Extract Data**: Use the "Copy AI prompt" feature on the home page. Upload your receipt image to an AI tool (like ChatGPT) and paste the prompt.
+2.  **Create Bill**: Copy the JSON output from the AI and paste it into the "Paste AI JSON" section.
+3.  **Setup Bank**: Select your bank and enter your account number.
+4.  **Share**: Click "Generate share link" and send the URL to your friends.
+5.  **Select & Pay**: Friends open the link, select their items, and click "Generate QR" to pay via their banking app.
+
+## Project Structure
+
+- `src/lib/bill`: Core logic for bill validation, types, and calculation utilities.
+- `src/lib/emvcode`: Utilities for generating EMVCo compatible QR payloads.
+- `src/routes`: SvelteKit routes.
+    - `/`: Home page (Bill creation).
+    - `/bill`: Shared bill view for item selection.
+    - `/qr`: Standalone QR display page.
+
+## License
+
+[MIT](https://opensource.org/licenses/MIT)
+
+Copyright (c) 2025-present, Quang Tran.
+
