@@ -18,7 +18,11 @@
   "billName": "Pizza 4P's",
   "items": [
     { "name": "Margherita Pizza", "qty": 1, "unitPrice": 189000 },
-    { "name": "Coke", "qty": 3, "unitPrice": 25000 }
+    { "name": "4 Cheese Pizza", "qty": 1, "unitPrice": 235000 },
+    { "name": "Seafood Pizza", "qty": 1, "unitPrice": 260000 },
+    { "name": "Caesar Salad", "qty": 1, "unitPrice": 85000 },
+    { "name": "Coke", "qty": 3, "unitPrice": 25000 },
+    { "name": "Tiramisu", "qty": 2, "unitPrice": 60000 }
   ],
   "extras": { "tip": 50000, "discount": 20000 }
 }`;
