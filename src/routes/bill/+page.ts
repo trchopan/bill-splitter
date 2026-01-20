@@ -7,10 +7,8 @@ export type SplitMode = 'individual' | 'even';
 
 export type SplitConfig = {
     mode: SplitMode;
-    // list of payer names in display order
-    payers: string[];
-    // assignments: itemId -> payerName (only used in individual mode)
-    assignments?: Record<string, string>;
+    payers: string[]; // list of payer names in display order
+    assignments?: Record<string, string[]>; // itemId -> payerNames[]
 };
 
 function safeParseConfig(encoded?: string | null): SplitConfig | null {
@@ -18,15 +16,24 @@ function safeParseConfig(encoded?: string | null): SplitConfig | null {
     try {
         const json = LZString.decompressFromEncodedURIComponent(encoded);
         if (!json) return null;
-        const obj = JSON.parse(json);
-        // very light validation
+        const obj: SplitConfig = JSON.parse(json);
         if (!obj || typeof obj !== 'object') return null;
+
         const mode = obj.mode === 'even' ? 'even' : 'individual';
+
         const payers = Array.isArray(obj.payers)
             ? obj.payers.filter((p: any) => typeof p === 'string' && p.trim().length > 0)
             : [];
-        const assignments =
-            obj.assignments && typeof obj.assignments === 'object' ? obj.assignments : undefined;
+
+        let assignments: Record<string, string[]> | undefined = undefined;
+        if (obj.assignments && typeof obj.assignments === 'object') {
+            const a: Record<string, string[]> = {};
+            for (const [itemId, val] of Object.entries(obj.assignments)) {
+                a[itemId] = val.filter(x => typeof x === 'string' && x.trim().length > 0);
+            }
+            assignments = a;
+        }
+
         return {mode, payers, assignments};
     } catch {
         return null;

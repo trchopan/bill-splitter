@@ -16,7 +16,7 @@
     type SplitConfig = {
         mode: SplitMode;
         payers: string[]; // order matters
-        assignments?: Record<string, string>; // itemId -> payerName (only for individual)
+        assignments?: Record<string, string[]>; // itemId -> payerNames[] (only for individual)
     };
 
     // Try to start from loader-provided config, else defaults
@@ -28,7 +28,8 @@
 
     // If loader provided a config, initialize local state on mount
     onMount(() => {
-        let next = {...config};
+        let next: SplitConfig = {...config};
+
         if (data.config) {
             // basic merge
             next.mode = data.config.mode ?? next.mode;
@@ -36,26 +37,42 @@
                 Array.isArray(data.config.payers) && data.config.payers.length > 0
                     ? data.config.payers.slice()
                     : next.payers;
-            next.assignments = data.config.assignments ? {...data.config.assignments} : {};
+
+            // assignments may come from loader already as Record<string, string[]>
+            // but keep safe
+            const incoming = (data.config as any).assignments;
+            if (incoming && typeof incoming === 'object') {
+                const a: Record<string, string[]> = {};
+                for (const [k, v] of Object.entries(incoming)) {
+                    if (Array.isArray(v)) {
+                        a[k] = v.filter(x => typeof x === 'string' && x.trim().length > 0);
+                    } else if (typeof v === 'string' && v.trim().length > 0) {
+                        // backward compatibility if any older config slipped through
+                        a[k] = [v];
+                    }
+                }
+                next.assignments = a;
+            } else {
+                next.assignments = {};
+            }
         }
 
-        // If no payers provided, provide a sensible default: "Friend 1", "Friend 2" up to number of items
+        // If no payers provided, provide a sensible default: "Alice", "Bob"
         if (!next.payers || next.payers.length === 0) {
-            // default: 2 payers if there are items, else empty
             if (shared && shared.items && shared.items.length > 0) {
                 next.payers = ['Alice', 'Bob'];
             }
         }
 
-        // If no assignment yet and individual mode, try to auto-assign each item to Friend 1
+        // If no assignment yet and individual mode, auto-assign each item to first payer
         if (
             next.mode === 'individual' &&
             (!next.assignments || Object.keys(next.assignments).length === 0) &&
             shared
         ) {
-            const a: Record<string, string> = {};
+            const a: Record<string, string[]> = {};
             for (const it of shared.items) {
-                a[it.id] = next.payers[0] ?? 'Friend';
+                a[it.id] = [next.payers[0] ?? 'Friend'];
             }
             next.assignments = a;
         }
@@ -76,36 +93,55 @@
     function removePayer(idx: number) {
         const name = config.payers[idx];
         const newPayers = config.payers.filter((_, i) => i !== idx);
+
         // update assignments that referenced removed payer
-        const newAssignments: Record<string, string> = {};
+        const newAssignments: Record<string, string[]> = {};
         if (config.assignments) {
             for (const k of Object.keys(config.assignments)) {
+                const current = config.assignments[k] ?? [];
+                const filtered = current.filter(p => p !== name);
+
+                // If removing leaves none selected, fallback to first payer (or empty)
                 newAssignments[k] =
-                    config.assignments[k] === name ? (newPayers[0] ?? '') : config.assignments[k];
+                    filtered.length > 0 ? filtered : newPayers[0] ? [newPayers[0]] : [];
             }
         }
+
         config = {...config, payers: newPayers, assignments: newAssignments};
     }
 
     function renamePayer(idx: number, newName: string) {
         const old = config.payers[idx];
-        // create a new array and replace config immutably so Svelte picks up the change
         const newPayers = config.payers.slice();
         newPayers[idx] = newName;
 
-        // update assignments immutably too
-        const newAssignments: Record<string, string> = {};
+        const newAssignments: Record<string, string[]> = {};
         if (config.assignments) {
             for (const k of Object.keys(config.assignments)) {
-                newAssignments[k] = config.assignments[k] === old ? newName : config.assignments[k];
+                const arr = config.assignments[k] ?? [];
+                newAssignments[k] = arr.map(p => (p === old ? newName : p));
             }
         }
 
         config = {...config, payers: newPayers, assignments: newAssignments};
     }
 
-    function assignItemToPayer(itemId: string, payerName: string) {
-        const newAssignments = {...(config.assignments ?? {}), [itemId]: payerName};
+    function toggleItemPayer(itemId: string, payerName: string, checked: boolean) {
+        const current = (config.assignments?.[itemId] ?? []).slice();
+
+        let next: string[];
+        if (checked) {
+            next = current.includes(payerName) ? current : [...current, payerName];
+        } else {
+            next = current.filter(p => p !== payerName);
+        }
+
+        // Prevent empty selection in individual mode (recommended)
+        if (config.mode === 'individual' && next.length === 0) {
+            next = current.length > 0 ? current : config.payers[0] ? [config.payers[0]] : [];
+        }
+
+        const newAssignments = {...(config.assignments ?? {}), [itemId]: next};
         config = {...config, assignments: newAssignments};
     }
 
@@ -120,6 +156,20 @@
         return (shared.extras.tax ?? 0) + (shared.extras.tip ?? 0) - (shared.extras.discount ?? 0);
     }
 
+    function splitEvenly(lineTotal: number, payers: string[]): Record<string, number> {
+        const out: Record<string, number> = {};
+        const k = Math.max(1, payers.length);
+
+        const base = Math.floor(lineTotal / k);
+        let rem = lineTotal - base * k;
+
+        for (const p of payers) {
+            out[p] = base + (rem > 0 ? 1 : 0);
+            rem--;
+        }
+        return out;
+    }
+
     // Per-payer item subtotal (individual mode) or equal split (even mode)
     function computePayerSubtotals(): Record<string, number> {
         const result: Record<string, number> = {};
@@ -129,20 +179,35 @@
 
         if (config.mode === 'individual') {
             for (const it of shared.items) {
-                const payer =
-                    (config.assignments && config.assignments[it.id]) ||
-                    config.payers[0] ||
-                    'Friend';
-                if (!result[payer]) result[payer] = 0;
-                result[payer] += it.qty * it.unitPrice;
+                const selectedRaw =
+                    config.assignments &&
+                    config.assignments[it.id] &&
+                    config.assignments[it.id].length > 0
+                        ? config.assignments[it.id]
+                        : config.payers[0]
+                          ? [config.payers[0]]
+                          : [];
+
+                // keep only payers that still exist
+                const selected = selectedRaw.filter(p => config.payers.includes(p));
+                const finalSelected =
+                    selected.length > 0 ? selected : config.payers[0] ? [config.payers[0]] : [];
+
+                const lineTotal = it.qty * it.unitPrice;
+                const shares = splitEvenly(lineTotal, finalSelected);
+
+                for (const [payer, amt] of Object.entries(shares)) {
+                    if (result[payer] == null) result[payer] = 0;
+                    result[payer] += amt;
+                }
             }
         } else {
-            // even split: subtotal is divided equally across payers (we will compute final rounding later)
+            // even split: subtotal is divided equally across payers
             const subtotal = computeItemsSubtotal();
             const count = Math.max(1, config.payers.length);
             const base = Math.floor(subtotal / count);
             let remainder = subtotal - base * count;
-            // distribute remainder 1 VND to first payers
+
             for (let i = 0; i < config.payers.length; i++) {
                 const p = config.payers[i];
                 result[p] = base + (remainder > 0 ? 1 : 0);
@@ -159,6 +224,7 @@
         const extrasNet = computeExtrasNet();
         const subtotals = computePayerSubtotals();
         const totals: Record<string, number> = {};
+
         if (itemsSubtotal === 0) {
             // no items -> split extras evenly if any
             const count = Math.max(1, config.payers.length);
@@ -202,7 +268,6 @@
     let payerQrs: PayerQr[] = [];
 
     async function generateAllQrs() {
-        // Recreate the array to ensure reactivity if changed
         const next: PayerQr[] = [];
         if (!shared) {
             payerQrs = next;
@@ -276,16 +341,12 @@
         const params = new SvelteURLSearchParams(window.location.search);
         params.set('b', params.get('b') ?? '');
         params.set('c', makeConfigParam());
-        // Build new URL and navigate (preserve origin + pathname)
         const newUrl = `${location.pathname}?${params.toString()}`;
-        // Navigate to new URL to update page state for others; keep it simple via assign
         location.assign(newUrl);
     }
 
     // Auto-generate QRs when relevant state changes
-    // NOTE: we reference `config` and `shared` so this reactive block runs after those change.
     $: if (shared && config) {
-        // fire-and-forget async generation; allow the UI to update immediately
         (async () => {
             await generateAllQrs();
         })();
@@ -312,9 +373,9 @@
             <div>
                 <h1 style="margin:0;">{shared.billName}</h1>
                 <div style="opacity:0.85; margin-top:6px;">
-                    Owner can assign items to payers, or choose even split. The app generates
-                    per-payer QR codes automatically as you edit. Click Recompute to persist the
-                    configuration.
+                    Owner can assign items to multiple payers, or choose even split. The app
+                    generates per-payer QR codes automatically as you edit. Click Recompute to
+                    persist the configuration.
                 </div>
             </div>
             <div style="text-align:right; opacity:0.85;">
@@ -349,9 +410,9 @@
                                     renamePayer(idx, (e.currentTarget as HTMLInputElement).value)}
                                 style="flex:1; padding:6px;"
                             />
-                            <button on:click={() => removePayer(idx)} style="padding:6px;"
-                                >Remove</button
-                            >
+                            <button on:click={() => removePayer(idx)} style="padding:6px;">
+                                Remove
+                            </button>
                         </div>
                     {/each}
 
@@ -382,34 +443,6 @@
                         {(computeItemsSubtotal() + computeExtrasNet()).toLocaleString()} VND
                     </div>
                 </div>
-
-                <div
-                    style="margin-top:12px; padding:10px; border:1px solid #eee; border-radius:8px;"
-                >
-                    <div style="font-weight:600; margin-bottom:6px;">
-                        Preview per-payer subtotal
-                    </div>
-                    {#each Object.entries(computePayerSubtotals()) as [payer, subtotal] (payer)}
-                        <div
-                            style="display:flex; justify-content:space-between; margin-bottom:4px;"
-                        >
-                            <div>{payer}</div>
-                            <div>{subtotal.toLocaleString()} VND</div>
-                        </div>
-                    {/each}
-                    <hr />
-                    <div style="font-weight:600; margin-top:6px;">
-                        Final per-payer total (includes extras share)
-                    </div>
-                    {#each Object.entries(computePayerTotals()) as [payer, total] (payer)}
-                        <div
-                            style="display:flex; justify-content:space-between; margin-bottom:4px;"
-                        >
-                            <div>{payer}</div>
-                            <div>{total.toLocaleString()} VND</div>
-                        </div>
-                    {/each}
-                </div>
             </div>
         </section>
 
@@ -430,7 +463,7 @@
                             <th
                                 style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
                             >
-                                Available
+                                Qty
                             </th>
                             <th
                                 style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
@@ -462,23 +495,31 @@
                                     style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:right;"
                                 >
                                     {#if config.mode === 'individual'}
-                                        <select
-                                            on:change={e =>
-                                                assignItemToPayer(
-                                                    it.id,
-                                                    (e.currentTarget as HTMLSelectElement).value
-                                                )}
-                                            value={config.assignments?.[it.id]}
+                                        <div
+                                            style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;"
                                         >
                                             {#each config.payers as p (p)}
-                                                <option
-                                                    value={p}
-                                                    selected={config.assignments?.[it.id] === p}
+                                                <label
+                                                    style="display:flex; gap:8px; align-items:center; font-size:13px;"
                                                 >
-                                                    {p}
-                                                </option>
+                                                    <span>{p}</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={(
+                                                            config.assignments?.[it.id] ?? []
+                                                        ).includes(p)}
+                                                        on:change={e =>
+                                                            toggleItemPayer(
+                                                                it.id,
+                                                                p,
+                                                                (
+                                                                    e.currentTarget as HTMLInputElement
+                                                                ).checked
+                                                            )}
+                                                    />
+                                                </label>
                                             {/each}
-                                        </select>
+                                        </div>
                                     {:else}
                                         <span>— (even split)</span>
                                     {/if}
@@ -576,8 +617,9 @@
                                         <button
                                             on:click={() =>
                                                 copyToClipboard(`${location.origin}/qr?d=${d}`)}
-                                            >Copy QR-only link</button
                                         >
+                                            Copy QR-only link
+                                        </button>
                                     {/await}
                                 {/if}
                             </div>
