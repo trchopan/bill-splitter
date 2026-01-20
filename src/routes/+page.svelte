@@ -254,38 +254,43 @@ Now extract the receipt into the JSON format exactly.`;
     <title>Bill Split - Create</title>
 </svelte:head>
 
-<main class="container mx-auto max-w-4xl p-6">
-    <h1 class="mb-4 text-3xl font-bold">Create a Bill (Owner)</h1>
+<main class="container mx-auto w-full max-w-4xl px-4 pt-5 pb-10 sm:px-6">
+    <!-- Header -->
+    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <h1 class="text-2xl font-bold sm:text-3xl">Create a Bill (Owner)</h1>
 
-    <div class="tabs-boxed mb-6 tabs">
-        <button
-            class="tab"
-            class:tab-active={mode === 'parse'}
-            on:click={() => switchMode('parse')}
-        >
-            Parse JSON
-        </button>
+        <!-- Tabs: stack on mobile, inline on desktop -->
+        <div class="tabs-boxed tabs w-full sm:w-auto">
+            <button
+                class="tab flex-1 sm:flex-none"
+                class:tab-active={mode === 'parse'}
+                on:click={() => switchMode('parse')}
+            >
+                Parse JSON
+            </button>
 
-        <button
-            class="tab"
-            class:tab-active={mode === 'edit'}
-            disabled={!parsed}
-            on:click={() => switchMode('edit')}
-            title={!parsed ? 'Parse valid JSON first' : ''}
-        >
-            Edit
-        </button>
+            <button
+                class="tab flex-1 sm:flex-none"
+                class:tab-active={mode === 'edit'}
+                disabled={!parsed}
+                on:click={() => switchMode('edit')}
+                title={!parsed ? 'Parse valid JSON first' : ''}
+            >
+                Edit
+            </button>
+        </div>
     </div>
 
+    <!-- 1) Owner Payment Information -->
     <div
-        class="card mb-6 border border-base-200 bg-base-100 shadow-xl"
+        class="card mb-4 border border-base-200 bg-base-100 shadow-xl"
         class:border-base-200={!highlightOwnerInfo}
         class:border-error={highlightOwnerInfo}
         class:ring-2={highlightOwnerInfo}
         class:ring-error={highlightOwnerInfo}
     >
-        <div class="card-body">
-            <h2 class="card-title text-xl">1) Owner Payment Information</h2>
+        <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl">1) Owner Payment Information</h2>
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="form-control w-full">
@@ -338,7 +343,7 @@ Now extract the receipt into the JSON format exactly.`;
                             />
                         {/key}
                         <button
-                            class="btn btn-outline btn-sm"
+                            class="btn w-full btn-outline btn-sm sm:w-auto"
                             on:click={() => navigator.clipboard.writeText(bookmarkUrl)}
                         >
                             Copy bookmark link
@@ -349,10 +354,11 @@ Now extract the receipt into the JSON format exactly.`;
         </div>
     </div>
 
+    <!-- Parse mode -->
     {#if mode === 'parse'}
-        <div class="card mb-6 border border-base-200 bg-base-100 shadow-xl">
-            <div class="card-body">
-                <h2 class="card-title text-xl">2) Extract Bill Data (AI)</h2>
+        <div class="card mb-4 border border-base-200 bg-base-100 shadow-xl">
+            <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl">2) Extract Bill Data (AI)</h2>
 
                 <p class="text-sm opacity-85">
                     Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this
@@ -360,25 +366,29 @@ Now extract the receipt into the JSON format exactly.`;
                     result below.
                 </p>
 
-                <div class="mt-2 flex flex-wrap items-center gap-3">
-                    <button class="btn btn-sm btn-secondary" on:click={() => copyText(AI_PROMPT)}
-                        >Copy AI prompt</button
+                <div
+                    class="mt-3 flex flex-col gap-2 sm:mt-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3"
+                >
+                    <button
+                        class="btn w-full btn-sm btn-secondary sm:w-auto"
+                        on:click={() => copyText(AI_PROMPT)}>Copy AI prompt</button
                     >
-                    <span class="badge badge-ghost">Multimodal • Image → JSON</span>
+                    <span class="badge w-fit badge-ghost">Multimodal • Image → JSON</span>
                 </div>
 
                 <div class="collapse-arrow collapse mt-4 rounded-box bg-base-200">
                     <input type="checkbox" />
                     <div class="collapse-title font-semibold">Show prompt</div>
                     <div class="collapse-content">
-                        <pre class="rounded-lg bg-base-300 p-3 text-xs whitespace-pre-wrap">
+                        <pre
+                            class="overflow-x-auto rounded-lg bg-base-300 p-3 text-xs whitespace-pre-wrap">
 {AI_PROMPT}</pre>
                     </div>
                 </div>
 
                 <div class="divider"></div>
 
-                <p class="mb-2 text-lg font-semibold">Paste AI JSON below:</p>
+                <p class="mb-2 text-base font-semibold sm:text-lg">Paste AI JSON below:</p>
 
                 <textarea
                     bind:value={rawJson}
@@ -386,10 +396,12 @@ Now extract the receipt into the JSON format exactly.`;
                     class="textarea-bordered textarea w-full font-mono text-sm"
                 ></textarea>
 
-                <div class="mt-4 flex items-center gap-3">
-                    <button class="btn btn-primary" on:click={onParse}>Parse & Validate</button>
+                <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <button class="btn w-full btn-primary sm:w-auto" on:click={onParse}>
+                        Parse & Validate
+                    </button>
                     {#if parsed}
-                        <span class="badge gap-2 badge-success">Valid ✅</span>
+                        <span class="badge w-fit gap-2 badge-success">Valid ✅</span>
                     {/if}
                 </div>
 
@@ -421,15 +433,17 @@ Now extract the receipt into the JSON format exactly.`;
         </div>
     {/if}
 
+    <!-- Edit mode -->
     {#if mode === 'edit' && parsed}
-        <div class="card mb-6 border border-base-200 bg-base-100 shadow-xl">
-            <div class="card-body">
-                <h2 class="card-title text-xl">2) Edit Bill</h2>
+        <div class="card border border-base-200 bg-base-100 shadow-xl">
+            <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl">2) Edit Bill</h2>
                 <p class="text-sm opacity-80">
                     Adjust bill name, items, quantities, prices, and extras. Totals update
                     instantly.
                 </p>
 
+                <!-- Top section: stacks on mobile, side-by-side on md -->
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="form-control w-full">
                         <div class="label">
@@ -445,17 +459,20 @@ Now extract the receipt into the JSON format exactly.`;
                     </div>
 
                     <div class="rounded-lg bg-base-200 p-3 text-sm">
-                        <div class="flex justify-between">
-                            <span>Items total:</span>
-                            <span class="font-medium">{formatVnd(itemsTotal)} VND</span>
+                        <div class="flex justify-between gap-3">
+                            <span class="opacity-80">Items total:</span>
+                            <span class="font-medium tabular-nums">{formatVnd(itemsTotal)} VND</span
+                            >
                         </div>
-                        <div class="flex justify-between">
-                            <span>Extras net:</span>
-                            <span class="font-medium">{formatVnd(extrasNet)} VND</span>
+                        <div class="flex justify-between gap-3">
+                            <span class="opacity-80">Extras net:</span>
+                            <span class="font-medium tabular-nums">{formatVnd(extrasNet)} VND</span>
                         </div>
-                        <div class="mt-2 flex justify-between border-t border-base-content/20 pt-2">
+                        <div
+                            class="mt-2 flex justify-between gap-3 border-t border-base-content/20 pt-2"
+                        >
                             <span class="font-bold">Computed total:</span>
-                            <span class="font-bold text-primary"
+                            <span class="font-bold text-primary tabular-nums"
                                 >{formatVnd(computedBillTotal)} VND</span
                             >
                         </div>
@@ -464,6 +481,7 @@ Now extract the receipt into the JSON format exactly.`;
 
                 <div class="divider my-5"></div>
 
+                <!-- Extras: 1 col on mobile, 3 cols on md -->
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div class="form-control">
                         <div class="label"><span class="label-text">Tax</span></div>
@@ -499,12 +517,80 @@ Now extract the receipt into the JSON format exactly.`;
 
                 <div class="divider my-5"></div>
 
-                <div class="flex items-center justify-between gap-3">
-                    <h3 class="text-lg font-semibold">Items</h3>
-                    <button class="btn btn-sm btn-secondary" on:click={addItem}>Add item</button>
+                <h3 class="text-base font-semibold sm:text-lg">Items</h3>
+
+                <!-- Mobile items editor (cards) -->
+                <div class="mt-3 space-y-3 md:hidden">
+                    {#each parsed.items as it, idx (idx)}
+                        <div class="rounded-xl border border-base-200 bg-base-100 p-3 shadow-sm">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-xs font-semibold opacity-70">Item</div>
+                                    <input
+                                        class="input-bordered input input-sm mt-1 w-full"
+                                        value={it.name}
+                                        placeholder="Item name"
+                                        on:input={e =>
+                                            setItemName(
+                                                idx,
+                                                (e.currentTarget as HTMLInputElement).value
+                                            )}
+                                    />
+                                </div>
+
+                                <button
+                                    class="btn -mt-1 text-error btn-ghost btn-sm"
+                                    on:click={() => removeItem(idx)}
+                                    title="Remove"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+
+                            <div class="mt-3 grid grid-cols-2 gap-3">
+                                <div>
+                                    <div class="text-xs font-semibold opacity-70">Qty</div>
+                                    <input
+                                        class="input-bordered input input-sm mt-1 w-full text-right"
+                                        inputmode="numeric"
+                                        value={String(it.qty)}
+                                        on:input={e =>
+                                            setItemQty(
+                                                idx,
+                                                (e.currentTarget as HTMLInputElement).value
+                                            )}
+                                    />
+                                </div>
+
+                                <div>
+                                    <div class="text-xs font-semibold opacity-70">Unit (VND)</div>
+                                    <input
+                                        class="input-bordered input input-sm mt-1 w-full text-right"
+                                        inputmode="numeric"
+                                        value={String(it.unitPrice)}
+                                        on:input={e =>
+                                            setItemUnitPrice(
+                                                idx,
+                                                (e.currentTarget as HTMLInputElement).value
+                                            )}
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                class="mt-3 flex items-center justify-between border-t border-base-content/10 pt-3"
+                            >
+                                <span class="text-xs font-semibold opacity-70">Line total</span>
+                                <span class="font-medium tabular-nums"
+                                    >{formatVnd(it.qty * it.unitPrice)} VND</span
+                                >
+                            </div>
+                        </div>
+                    {/each}
                 </div>
 
-                <div class="mt-3 overflow-x-auto">
+                <!-- Desktop items editor (table) -->
+                <div class="mt-3 hidden overflow-x-auto md:block">
                     <table class="table w-full table-zebra">
                         <thead>
                             <tr>
@@ -518,7 +604,7 @@ Now extract the receipt into the JSON format exactly.`;
                         <tbody>
                             {#each parsed.items as it, idx (idx)}
                                 <tr>
-                                    <td class="min-w-[220px]">
+                                    <td class="min-w-55">
                                         <input
                                             class="input-bordered input input-sm w-full"
                                             value={it.name}
@@ -530,7 +616,7 @@ Now extract the receipt into the JSON format exactly.`;
                                                 )}
                                         />
                                     </td>
-                                    <td class="min-w-[110px] text-right">
+                                    <td class="min-w-27.5 text-right">
                                         <input
                                             class="input-bordered input input-sm w-full text-right"
                                             inputmode="numeric"
@@ -542,7 +628,7 @@ Now extract the receipt into the JSON format exactly.`;
                                                 )}
                                         />
                                     </td>
-                                    <td class="min-w-[150px] text-right">
+                                    <td class="min-w-37.5 text-right">
                                         <input
                                             class="input-bordered input input-sm w-full text-right"
                                             inputmode="numeric"
@@ -554,7 +640,7 @@ Now extract the receipt into the JSON format exactly.`;
                                                 )}
                                         />
                                     </td>
-                                    <td class="min-w-[140px] text-right font-medium">
+                                    <td class="min-w-40 text-right font-medium tabular-nums">
                                         {formatVnd(it.qty * it.unitPrice)}
                                     </td>
                                     <td class="text-right">
@@ -570,6 +656,14 @@ Now extract the receipt into the JSON format exactly.`;
                             {/each}
                         </tbody>
                     </table>
+                </div>
+
+                <div
+                    class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                >
+                    <button class="btn w-full btn-sm btn-secondary sm:w-auto" on:click={addItem}>
+                        Add item
+                    </button>
                 </div>
 
                 {#if validationErrors.length > 0}
@@ -597,13 +691,29 @@ Now extract the receipt into the JSON format exactly.`;
                     </div>
                 {/if}
 
-                <div class="mt-6 flex items-center gap-3">
+                <div class="mt-6 hidden items-center gap-3 sm:flex">
                     <button class="btn btn-primary" on:click={openBillPage}>
                         Generate bill link
                     </button>
                     <button class="btn btn-outline" on:click={() => switchMode('parse')}>
                         Back to JSON
                     </button>
+                </div>
+
+                <div class="border-t border-base-200 bg-base-100/95 backdrop-blur md:hidden">
+                    <div class="container mx-auto max-w-4xl py-3">
+                        <div class="flex flex-col gap-2">
+                            <button class="btn w-full btn-primary" on:click={openBillPage}>
+                                Generate bill link
+                            </button>
+                            <button
+                                class="btn w-full btn-outline"
+                                on:click={() => switchMode('parse')}
+                            >
+                                Back to JSON
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-2 text-xs opacity-60">
