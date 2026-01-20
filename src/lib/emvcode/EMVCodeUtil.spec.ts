@@ -1,61 +1,91 @@
 import {describe, it, expect} from 'vitest';
-import {generateQrEmvPayload, crc16CcittFalseHex} from './EMVCodeUtil';
+import {generateQrEmvPayload, crc16CcittFalseHexLower} from './EMVCodeUtil';
 
 type TlvNode = {
     tag: string;
-    len: number;
+    len: number; // graphemes length
     value: string;
-    valueBytes: Uint8Array;
-    start: number; // byte offset in the original buffer
-    end: number; // byte offset (exclusive)
+    start: number; // JS string index (UTF-16 code units)
+    end: number; // JS string index (exclusive)
 };
 
-function asciiFromBytes(bytes: Uint8Array): string {
-    return String.fromCharCode(...bytes);
+/**
+ * Grapheme-aware utilities.
+ */
+function graphemeSegments(str: string): {segment: string; index: number}[] {
+    const AnyIntl: any = Intl as any;
+    if (typeof AnyIntl?.Segmenter === 'function') {
+        const seg = new AnyIntl.Segmenter(undefined, {granularity: 'grapheme'});
+        // segment() returns iterable with {segment, index, isWordLike}
+        return Array.from(seg.segment(str), (x: any) => ({segment: x.segment, index: x.index}));
+    }
+    // Fallback: code points (close enough for most cases)
+    const out: {segment: string; index: number}[] = [];
+    let i = 0;
+    for (const ch of Array.from(str)) {
+        out.push({segment: ch, index: i});
+        i += ch.length; // ch.length is 2 for surrogate pairs, else 1
+    }
+    return out;
 }
 
-function decodeUtf8(bytes: Uint8Array): string {
-    return new TextDecoder().decode(bytes);
+function graphemeLength(str: string): number {
+    return graphemeSegments(str).length;
 }
 
 /**
- * Parse EMV-style TLV where:
- * - Tag is 2 ASCII digits
- * - Length is 2 ASCII digits (decimal byte length)
- * - Value is UTF-8 bytes with byte length specified by Length
- *
- * IMPORTANT: This parser uses byte offsets (not JS string slicing),
- * so it is correct for Vietnamese / non-ASCII text.
+ * Slice by grapheme count from a given JS string index.
+ * Returns [slice, newIndex].
  */
-function parseTlvBytes(buf: Uint8Array, offset = 0, maxBytes?: number): TlvNode[] {
-    const out: TlvNode[] = [];
-    const end = maxBytes == null ? buf.length : Math.min(buf.length, offset + maxBytes);
+function sliceByGraphemes(str: string, startIndex: number, count: number): [string, number] {
+    if (count <= 0) return ['', startIndex];
 
+    const tail = str.slice(startIndex);
+    const segs = graphemeSegments(tail);
+
+    if (count > segs.length) {
+        throw new Error(
+            `sliceByGraphemes overrun: need ${count} graphemes from index=${startIndex}, but only ${segs.length} available`
+        );
+    }
+
+    const endInTail = count === segs.length ? tail.length : segs[count].index; // index of the (count+1)th segment start
+
+    const slice = tail.slice(0, endInTail);
+    return [slice, startIndex + endInTail];
+}
+
+/**
+ * Parse EMV TLV where:
+ * - Tag is 2 chars (digits)
+ * - Length is 2 digits (we assume < 100 in tests)
+ * - Value length is in GRAPHEMES, not UTF-8 bytes
+ */
+function parseTlv(payload: string, offset = 0, maxChars?: number): TlvNode[] {
+    const out: TlvNode[] = [];
+
+    const payloadEnd =
+        maxChars == null ? payload.length : Math.min(payload.length, offset + maxChars);
     let i = offset;
-    while (i < end) {
-        if (i + 4 > end) {
-            throw new Error(`TLV truncated at byte ${i} (need at least 4 bytes for tag+len)`);
+
+    while (i < payloadEnd) {
+        if (i + 4 > payloadEnd) {
+            throw new Error(`TLV truncated at index ${i} (need at least 4 chars for tag+len)`);
         }
 
-        const tag = asciiFromBytes(buf.slice(i, i + 2));
-        const lenStr = asciiFromBytes(buf.slice(i + 2, i + 4));
-        if (!/^\d{2}$/.test(tag)) throw new Error(`Invalid TLV tag "${tag}" at byte ${i}`);
-        if (!/^\d{2}$/.test(lenStr)) throw new Error(`Invalid TLV length "${lenStr}" at byte ${i}`);
+        const tag = payload.slice(i, i + 2);
+        const lenStr = payload.slice(i + 2, i + 4);
+
+        if (!/^\d{2}$/.test(tag)) throw new Error(`Invalid TLV tag "${tag}" at index ${i}`);
+        if (!/^\d{2}$/.test(lenStr))
+            throw new Error(`Invalid TLV length "${lenStr}" at index ${i}`);
 
         const len = Number.parseInt(lenStr, 10);
         const valueStart = i + 4;
-        const valueEnd = valueStart + len;
 
-        if (valueEnd > end) {
-            throw new Error(
-                `TLV value overruns buffer: tag=${tag}, len=${len}, start=${valueStart}, end=${valueEnd}, bufEnd=${end}`
-            );
-        }
+        const [value, valueEnd] = sliceByGraphemes(payload, valueStart, len);
 
-        const valueBytes = buf.slice(valueStart, valueEnd);
-        const value = decodeUtf8(valueBytes);
-
-        out.push({tag, len, value, valueBytes, start: i, end: valueEnd});
+        out.push({tag, len, value, start: i, end: valueEnd});
         i = valueEnd;
     }
 
@@ -70,20 +100,14 @@ function findOne(nodes: TlvNode[], tag: string): TlvNode {
     return hits[0];
 }
 
-function maybeFind(nodes: TlvNode[], tag: string): TlvNode | null {
-    const hits = nodes.filter(n => n.tag === tag);
-    if (hits.length === 0) return null;
-    if (hits.length > 1) throw new Error(`Expected at most 1 TLV tag ${tag}, found ${hits.length}`);
-    return hits[0];
-}
-
-describe('emvcode payload (TLV structure + CRC)', () => {
+describe('emvcode payload (compatible TLV structure + CRC)', () => {
     it('should generate a structurally valid EMV payload and CRC must verify', () => {
         const {payload, bank} = generateQrEmvPayload({
             bank: 'VCB',
             accountNumber: '123456789',
             amount: 50000,
             note: 'Test Payment',
+            countryCode: 'VN',
         });
 
         expect(bank.code).toBe('VCB');
@@ -91,95 +115,96 @@ describe('emvcode payload (TLV structure + CRC)', () => {
         // CRC verification:
         // Payload ends with Tag 63 len 04 + CRC(4 hex).
         // CRC is computed over everything up to (and including) "6304".
-        expect(payload).toMatch(/63\d{2}[0-9A-F]{4}$/); // light sanity: ends with tag63 + crc
-        expect(payload.slice(-8, -4)).toBe('6304'); // last tag header should be 6304
+        expect(payload).toMatch(/6304[0-9a-f]{4}$/);
+        expect(payload.slice(-8, -4)).toBe('6304');
 
         const crcActual = payload.slice(-4);
-        const crcExpected = crc16CcittFalseHex(payload.slice(0, -4));
+        const crcExpected = crc16CcittFalseHexLower(payload.slice(0, -4));
         expect(crcActual).toBe(crcExpected);
 
-        // Parse top-level TLV correctly by UTF-8 bytes
-        const bytes = new TextEncoder().encode(payload);
-        const top = parseTlvBytes(bytes);
+        // Parse top-level TLV using graphemes
+        const top = parseTlv(payload);
 
-        // Required top-level tags (based on your generator)
         expect(findOne(top, '00').value).toBe('01'); // Payload Format Indicator
-        expect(findOne(top, '01').value).toBe('12'); // POI method default dynamic
+        expect(findOne(top, '01').value).toBe('12'); // hardcoded
 
         const t38 = findOne(top, '38');
         const t53 = findOne(top, '53');
         const t54 = findOne(top, '54');
         const t58 = findOne(top, '58');
+        const t62 = findOne(top, '62');
         const t63 = findOne(top, '63');
 
-        expect(t53.value).toBe('704');
+        expect(t53.value).toBe('704'); // hardcoded
         expect(t54.value).toBe('50000');
         expect(t58.value).toBe('VN');
-        expect(t63.value).toMatch(/^[0-9A-F]{4}$/);
+        expect(t63.value).toMatch(/^[0-9a-f]{4}$/);
 
         // Tag 38 is nested TLV: 00=GUI, 01=BeneficiaryTemplate
-        const inside38 = parseTlvBytes(t38.valueBytes);
+        const inside38 = parseTlv(t38.value);
         expect(findOne(inside38, '00').value).toBe('A000000727');
 
         const beneficiaryTemplate = findOne(inside38, '01');
-        const insideBeneficiary = parseTlvBytes(beneficiaryTemplate.valueBytes);
+        const insideBeneficiary = parseTlv(beneficiaryTemplate.value);
 
         expect(findOne(insideBeneficiary, '00').value).toBe(bank.bin); // bank BIN
         expect(findOne(insideBeneficiary, '01').value).toBe('123456789'); // account number
         expect(findOne(insideBeneficiary, '02').value).toBe('QRIBFTTA'); // service code
 
         // Tag 62 contains subtag 08 = note
-        const t62 = findOne(top, '62');
-        const inside62 = parseTlvBytes(t62.valueBytes);
+        const inside62 = parseTlv(t62.value);
         expect(findOne(inside62, '08').value).toBe('Test Payment');
     });
 
-    it('should omit Tag 62 when note is missing', () => {
+    it('should ALWAYS include Tag 62 and include subtag 08 even when note is missing', () => {
         const {payload} = generateQrEmvPayload({
             bank: 'VCB',
             accountNumber: '123',
             amount: 1000,
+            // note omitted
+            // countryCode omitted (defaults)
         });
 
-        // Parse and confirm Tag 62 not present structurally
-        const bytes = new TextEncoder().encode(payload);
-        const top = parseTlvBytes(bytes);
+        const top = parseTlv(payload);
 
-        expect(maybeFind(top, '62')).toBeNull();
+        const t62 = findOne(top, '62'); // must exist
+        const inside62 = parseTlv(t62.value);
+
+        const t08 = findOne(inside62, '08');
+        expect(t08.value).toBe(''); // empty note becomes 0800
+        expect(t08.len).toBe(0);
 
         // CRC still valid
         const crcActual = payload.slice(-4);
-        const crcExpected = crc16CcittFalseHex(payload.slice(0, -4));
+        const crcExpected = crc16CcittFalseHexLower(payload.slice(0, -4));
         expect(crcActual).toBe(crcExpected);
     });
 
-    it('should compute TLV byte lengths correctly for Vietnamese note (UTF-8)', () => {
-        const note = 'Xin chào Việt Nam'; // contains diacritics (multi-byte in UTF-8)
+    it('should compute TLV lengths as grapheme length for Vietnamese note', () => {
+        const note = 'Xin chào Việt Nam'; // contains diacritics
 
         const {payload} = generateQrEmvPayload({
             bank: 'VCB',
             accountNumber: '123456',
             amount: 99000,
             note,
+            countryCode: 'VN',
         });
 
-        // Parse TLV by bytes
-        const bytes = new TextEncoder().encode(payload);
-        const top = parseTlvBytes(bytes);
-
+        const top = parseTlv(payload);
         const t62 = findOne(top, '62');
-        const inside62 = parseTlvBytes(t62.valueBytes);
-
+        const inside62 = parseTlv(t62.value);
         const t08 = findOne(inside62, '08');
+
         expect(t08.value).toBe(note);
 
-        // Assert the length field equals UTF-8 byte length of note
-        const expectedByteLen = new TextEncoder().encode(note).length;
-        expect(t08.len).toBe(expectedByteLen);
+        // Assert the length field equals grapheme length (NOT UTF-8 byte length)
+        const expectedGraphemeLen = graphemeLength(note);
+        expect(t08.len).toBe(expectedGraphemeLen);
 
         // CRC must verify
         const crcActual = payload.slice(-4);
-        const crcExpected = crc16CcittFalseHex(payload.slice(0, -4));
+        const crcExpected = crc16CcittFalseHexLower(payload.slice(0, -4));
         expect(crcActual).toBe(crcExpected);
     });
 });

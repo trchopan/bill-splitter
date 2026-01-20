@@ -1,12 +1,15 @@
 /**
  * Vietnam / NAPAS - EMVCo payload generator for personal transfers (IBFT-to-account).
  *
- * - Merchant Account Information (EMV Tag 38) is a nested TLV:
- *   - subtag 00: GUI = "A000000727" (identifier)
- *   - subtag 01: Beneficiary information template containing:
- *       - 00: bank BIN (e.g., "970436")
- *       - 01: account number
- *       - 02: service = "QRIBFTTA" (transfer to account)
+ * Key compatibility behaviors:
+ * - TLV length is **grapheme length**, NOT UTF-8 byte length.
+ * - Tag 62 is **always included**.
+ * - Tag 62 always contains subtag 08, even when additional_data/note is empty -> "0800".
+ * - Tag 01 is hardcoded to "12".
+ * - Tag 53 is hardcoded to "704".
+ * - Country code is NOT forced uppercase.
+ * - Amount is used as provided (stringified), NOT truncated.
+ * - CRC output is lowercase hex (common Exemvi behavior).
  *
  * Bank BIN list below is hard-coded.
  */
@@ -14,11 +17,9 @@
 export type BankInput = {
     bank: string; // user-entered bank name, shortName, or code (e.g., "Vietcombank", "VCB", "BIDV", "Techcombank")
     accountNumber: string;
-    amount: number | string; // e.g. 499000 or "499000" (VND)
+    amount: number | string; // e.g. 499000 or "499000" (VND) - will be stringified "as is"
     note?: string; // purpose/description
-    countryCode?: string; // default "VN"
-    currencyNumeric?: string; // default "704" (VND)
-    pointOfInitiationMethod?: '11' | '12'; // "12" dynamic by default
+    countryCode?: string; // default "VN" (NOT auto-uppercased)
 };
 
 type Bank = {
@@ -279,12 +280,10 @@ function normalizeBankKey(s: string): string {
 export function resolveBankBin(userBankInput: string): Bank {
     const key = normalizeBankKey(userBankInput);
 
-    // Match by code, shortName, or Vietnamese name
     const found =
         BANKS.find(b => normalizeBankKey(b.code) === key) ??
         BANKS.find(b => normalizeBankKey(b.shortName) === key) ??
         BANKS.find(b => normalizeBankKey(b.name) === key) ??
-        // Fuzzy contains match (helpful for "ngan hang vietcombank", etc.)
         BANKS.find(
             b =>
                 normalizeBankKey(b.name).includes(key) ||
@@ -299,33 +298,37 @@ export function resolveBankBin(userBankInput: string): Bank {
     return found;
 }
 
-function utf8ByteLength(str: string): number {
-    return new TextEncoder().encode(str).length;
+function graphemeLength(str: string): number {
+    const AnyIntl: any = Intl as any;
+    if (typeof AnyIntl?.Segmenter === 'function') {
+        const seg = new AnyIntl.Segmenter(undefined, {granularity: 'grapheme'});
+        let count = 0;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        for (const _ of seg.segment(str)) count++;
+        return count;
+    }
+    return Array.from(str).length;
 }
 
-function pad2(n: number): string {
+function pad2OrMore(n: number): string {
     const s = String(n);
     return s.length >= 2 ? s : '0' + s;
 }
 
 /**
- * EMV TLV: Tag (2 chars) + Length (2 chars, decimal) + Value
- * Length is byte length of UTF-8 encoding (safer for Vietnamese notes).
+ * EMV TLV: Tag (2 chars) + Length (>=2 chars, decimal) + Value
  */
 function tlv(tag: string, value: string): string {
     if (!/^\d{2}$/.test(tag)) throw new Error(`TLV tag must be 2 digits. Got: ${tag}`);
-    const len = utf8ByteLength(value);
-    if (len > 99)
-        throw new Error(`TLV value too long for 2-digit length: tag=${tag}, byteLen=${len}`);
-    return `${tag}${pad2(len)}${value}`;
+    const len = graphemeLength(value);
+    return `${tag}${pad2OrMore(len)}${value}`;
 }
 
 /**
- * CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), output 4-hex uppercase.
- * This is the CRC used by EMVCo QR payloads (Tag 63).
+ * CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), output 4-hex (lowercase).
+ * This matches common Exemvi.CRC.checksum_hex output casing.
  */
-export function crc16CcittFalseHex(payloadAscii: string): string {
-    // EMV payload is ASCII digits/letters; encode as bytes anyway.
+export function crc16CcittFalseHexLower(payloadAscii: string): string {
     const bytes = new TextEncoder().encode(payloadAscii);
 
     let crc = 0xffff;
@@ -336,7 +339,7 @@ export function crc16CcittFalseHex(payloadAscii: string): string {
             crc &= 0xffff;
         }
     }
-    return crc.toString(16).toUpperCase().padStart(4, '0');
+    return crc.toString(16).toLowerCase().padStart(4, '0');
 }
 
 /**
@@ -354,63 +357,53 @@ export function buildQrReceiveAccount(bankBin: string, accountNumber: string): s
         throw new Error(`accountNumber must be numeric. Got: ${accountNumber}`);
     }
 
-    // Beneficiary info template (subtag 01 inside Tag 38)
-    const beneficiary = tlv('00', bankBin) + tlv('01', acct) + tlv('02', 'QRIBFTTA'); // IBFT-to-account
+    const beneficiary = tlv('00', bankBin) + tlv('01', acct) + tlv('02', 'QRIBFTTA');
 
-    // Tag 38 value
     return tlv('00', 'A000000727') + tlv('01', beneficiary);
 }
 
 /**
- * Generate full EMVCo payload including CRC (Tag 63).
- * - 00: Payload Format Indicator = "01"
- * - 01: Point of Initiation Method = "12" (dynamic) by default
- * - 38: Merchant Account Information (nested TLV)
- * - 53: Currency (default "704")
- * - 54: Amount
- * - 58: Country Code (default "VN")
- * - 62: Additional Data, with subtag 08 = note
- * - 63: CRC
+ * Equivalent to:
+ *   generate_emvco_code(merchant_account, amount, country_code, additional_data)
+ *
+ * Behaviors:
+ * - Tag 01 = "12"
+ * - Tag 53 = "704"
+ * - Tag 62 ALWAYS present, containing Tag 08 (may be empty -> 0800)
+ * - Country code defaults to "VN" but NOT forced uppercase
+ * - Amount is String(input.amount) without truncation/validation
  */
-export function generateQrEmvPayload(input: BankInput): {payload: string; bank: Bank} {
+export function generateQrEmvPayload(input: BankInput): {
+    payload: string;
+    bank: Bank;
+} {
     const bank = resolveBankBin(input.bank);
-
-    const countryCode = (input.countryCode ?? 'VN').toUpperCase();
-    const currency = input.currencyNumeric ?? '704';
-    const poi = input.pointOfInitiationMethod ?? '12';
-
-    const amountStr =
-        typeof input.amount === 'number'
-            ? String(Math.trunc(input.amount))
-            : String(input.amount).trim();
-    if (!/^\d+$/.test(amountStr)) {
-        throw new Error(
-            `amount must be an integer number of VND (digits only). Got: ${input.amount}`
-        );
-    }
 
     const merchantAccount = buildQrReceiveAccount(bank.bin, input.accountNumber);
 
-    // Additional data (Tag 62) with subtag 08 (note/purpose)
-    const note = (input.note ?? '').trim();
-    const additionalData = note ? tlv('08', note) : ''; // if empty, omit subtag
-    const tags: string[] = [
+    const amountStr = String(input.amount);
+    const countryCode = input.countryCode ?? 'VN';
+
+    const additionalData = input.note ?? '';
+    const encodedAdditionalData = tlv('08', additionalData);
+
+    const allTags: string[] = [
         tlv('00', '01'),
-        tlv('01', poi),
+        tlv('01', '12'),
         tlv('38', merchantAccount),
-        tlv('53', currency),
+        tlv('53', '704'),
         tlv('54', amountStr),
         tlv('58', countryCode),
-        ...(additionalData ? [tlv('62', additionalData)] : []),
+        tlv('62', encodedAdditionalData),
     ];
 
-    const withoutCrc = tags.join('');
+    const payloadWithoutCrc = allTags.join('');
 
-    // Compute CRC over payload + "6304" (Tag 63 length 04) placeholder
-    const crcInput = `${withoutCrc}6304`;
-    const crc = crc16CcittFalseHex(crcInput);
+    // Compute CRC over payload + "6304" placeholder
+    const crcInput = `${payloadWithoutCrc}6304`;
+    const crc = crc16CcittFalseHexLower(crcInput);
 
-    const payload = `${withoutCrc}6304${crc}`;
+    const payload = `${payloadWithoutCrc}6304${crc}`;
     return {payload, bank};
 }
 
@@ -420,17 +413,3 @@ export function generateQrEmvPayload(input: BankInput): {payload: string; bank: 
 export function getBankList(): Bank[] {
     return [...BANKS];
 }
-
-/* --------------------
-   Example usage:
-
-const { payload, bank } = generateVietQrEmvPayload({
-  bank: "Vietcombank",        // or "VCB"
-  accountNumber: "0511000420488",
-  amount: 499000,
-  note: "Nap tien an trua",
-});
-
-console.log(bank.bin);   // "970436"
-console.log(payload);    // EMV string to encode as QR
--------------------- */
