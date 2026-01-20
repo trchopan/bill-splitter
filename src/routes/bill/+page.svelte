@@ -364,7 +364,7 @@
             <div>
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="stroke-current flex-shrink-0 h-6 w-6"
+                    class="h-6 w-6 shrink-0 stroke-current"
                     fill="none"
                     viewBox="0 0 24 24"
                     ><path
@@ -376,41 +376,41 @@
                 >
                 <div>
                     <h3 class="font-bold">Invalid bill link</h3>
-                    <ul class="list-disc list-inside text-sm">
+                    <ul class="list-inside list-disc text-sm">
                         {#each data.errors as e (e)}
                             <li>{e}</li>
                         {/each}
                     </ul>
-                    <div class="text-xs mt-1">Ask the bill owner to generate a new link.</div>
+                    <div class="mt-1 text-xs">Ask the bill owner to generate a new link.</div>
                 </div>
             </div>
         </div>
     {:else if shared}
-        <header class="flex flex-col md:flex-row justify-between gap-4 items-start mb-6">
+        <header class="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row">
             <div>
                 <h1 class="text-3xl font-bold">{shared.billName}</h1>
-                <div class="text-sm opacity-85 mt-2 max-w-2xl">
+                <div class="mt-2 max-w-2xl text-sm opacity-85">
                     Owner can assign items to multiple payers, or choose even split. The app
                     generates per-payer QR codes automatically as you edit. Click Recompute to
                     persist the configuration.
                 </div>
             </div>
-            <div class="card bg-base-100 border border-base-200 shadow-sm p-4">
+            <div class="card border border-base-200 bg-base-100 p-4 shadow-sm">
                 <div class="text-sm opacity-85">
-                    <div class="font-semibold mb-1">Pay to:</div>
-                    <div class="font-mono text-xs bg-base-200 p-2 rounded">
+                    <div class="mb-1 font-semibold">Pay to:</div>
+                    <div class="rounded bg-base-200 p-2 font-mono text-xs">
                         {shared.owner.bank} • {shared.owner.accountNumber}
                     </div>
                 </div>
             </div>
         </header>
 
-        <section class="grid grid-cols-1 md:grid-cols-[1fr_350px] gap-6 mb-8">
-            <div class="card bg-base-100 shadow-xl border border-base-200">
+        <section class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-[1fr_350px]">
+            <div class="card border border-base-200 bg-base-100 shadow-xl">
                 <div class="card-body">
                     <h2 class="card-title text-xl">Split mode & payers</h2>
 
-                    <div class="flex gap-6 items-center my-2">
+                    <div class="my-2 flex items-center gap-6">
                         <label class="label cursor-pointer gap-2">
                             <input
                                 type="radio"
@@ -431,14 +431,14 @@
                         </label>
                     </div>
 
-                    <div class="bg-base-200/50 rounded-lg p-4 border border-base-200">
-                        <div class="font-semibold mb-3 text-sm uppercase tracking-wide opacity-70">
+                    <div class="rounded-lg border border-base-200 bg-base-200/50 p-4">
+                        <div class="mb-3 text-sm font-semibold tracking-wide uppercase opacity-70">
                             Payers
                         </div>
 
                         <div class="space-y-2">
                             {#each config.payers as payer, idx (idx)}
-                                <div class="flex gap-2 items-center">
+                                <div class="flex items-center gap-2">
                                     <input
                                         value={payer}
                                         on:input={e =>
@@ -446,10 +446,10 @@
                                                 idx,
                                                 (e.currentTarget as HTMLInputElement).value
                                             )}
-                                        class="input input-bordered input-sm flex-1"
+                                        class="input-bordered input input-sm flex-1"
                                     />
                                     <button
-                                        class="btn btn-sm btn-square btn-ghost text-error"
+                                        class="btn btn-square text-error btn-ghost btn-sm"
                                         on:click={() => removePayer(idx)}
                                         title="Remove"
                                     >
@@ -477,7 +477,7 @@
                             <input
                                 placeholder="New payer name"
                                 bind:value={newPayerName}
-                                class="input input-bordered input-sm flex-1"
+                                class="input-bordered input input-sm flex-1"
                                 on:keydown={e => e.key === 'Enter' && addPayer()}
                             />
                             <button class="btn btn-sm btn-secondary" on:click={addPayer}>Add</button
@@ -487,10 +487,10 @@
                 </div>
             </div>
 
-            <div class="card bg-base-100 shadow-xl border border-base-200 h-fit">
+            <div class="card h-fit border border-base-200 bg-base-100 shadow-xl">
                 <div class="card-body">
                     <h2 class="card-title text-xl">Quick totals</h2>
-                    <div class="bg-base-200 rounded-lg p-4 space-y-2 text-sm">
+                    <div class="space-y-2 rounded-lg bg-base-200 p-4 text-sm">
                         <div class="flex justify-between">
                             <span>Items subtotal:</span>
                             <span class="font-medium"
@@ -507,9 +507,7 @@
                         <div class="flex justify-between text-lg font-bold text-primary">
                             <span>Grand total:</span>
                             <span
-                                >{(
-                                    computeItemsSubtotal() + computeExtrasNet()
-                                ).toLocaleString()} VND</span
+                                >{(computeItemsSubtotal() + computeExtrasNet()).toLocaleString()} VND</span
                             >
                         </div>
                     </div>
@@ -517,17 +515,17 @@
             </div>
         </section>
 
-        <section class="card bg-base-100 shadow-xl border border-base-200 mb-8">
+        <section class="card mb-8 border border-base-200 bg-base-100 shadow-xl">
             <div class="card-body">
-                <h2 class="card-title text-xl mb-4">Assign items</h2>
+                <h2 class="mb-4 card-title text-xl">Assign items</h2>
                 <div class="overflow-x-auto">
-                    <table class="table table-zebra table-sm w-full">
+                    <table class="table w-full table-zebra table-sm">
                         <thead>
                             <tr>
                                 <th>Item</th>
                                 <th class="text-right">Unit (VND)</th>
                                 <th class="text-right">Qty</th>
-                                <th class="text-right min-w-[200px]">Assigned to</th>
+                                <th class="min-w-[200px] text-right">Assigned to</th>
                                 <th class="text-right">Line (VND)</th>
                             </tr>
                         </thead>
@@ -541,10 +539,10 @@
                                     <td class="text-right">{it.qty}</td>
                                     <td class="text-right">
                                         {#if config.mode === 'individual'}
-                                            <div class="flex flex-col gap-1 items-end">
+                                            <div class="flex flex-col items-end gap-1">
                                                 {#each config.payers as p (p)}
                                                     <label
-                                                        class="label cursor-pointer py-0 gap-2 hover:bg-base-200 rounded px-1"
+                                                        class="label cursor-pointer gap-2 rounded px-1 py-0 hover:bg-base-200"
                                                     >
                                                         <span class="label-text text-xs">{p}</span>
                                                         <input
@@ -594,12 +592,12 @@
                         {#if newUrl}
                             <div class="alert alert-success shadow-sm">
                                 <div class="w-full">
-                                    <h3 class="font-bold text-sm">New link generated:</h3>
-                                    <div class="flex gap-2 mt-2">
+                                    <h3 class="text-sm font-bold">New link generated:</h3>
+                                    <div class="mt-2 flex gap-2">
                                         <input
                                             readonly
                                             bind:value={newUrl}
-                                            class="input input-sm input-bordered w-full bg-base-100"
+                                            class="input-bordered input input-sm w-full bg-base-100"
                                         />
                                         <button
                                             class="btn btn-sm"
@@ -616,13 +614,13 @@
             </div>
         </section>
 
-        <section class="card bg-base-100 shadow-xl border border-base-200 mb-12">
+        <section class="card mb-12 border border-base-200 bg-base-100 shadow-xl">
             <div class="card-body">
                 <h2 class="card-title text-xl">Per-payer QR codes</h2>
 
                 {#if payerQrs.length === 0}
                     <div
-                        class="flex items-center justify-center p-8 border-2 border-dashed border-base-300 rounded-lg text-base-content/50"
+                        class="flex items-center justify-center rounded-lg border-2 border-dashed border-base-300 p-8 text-base-content/50"
                     >
                         Generating QRs...
                     </div>
@@ -631,52 +629,54 @@
                 <div class="space-y-3">
                     {#each payerQrs as pq (pq.payer)}
                         <div
-                            class="collapse collapse-arrow bg-base-100 border border-base-200 rounded-box"
+                            class="collapse-arrow collapse rounded-box border border-base-200 bg-base-100"
                         >
                             <input type="checkbox" />
-                            <div class="collapse-title font-medium flex justify-between items-center">
-                                <div class="flex gap-2 items-center">
-                                    <span class="font-bold text-lg">{pq.payer}</span>
-                                    <span class="badge badge-lg badge-outline"
+                            <div
+                                class="collapse-title flex items-center justify-between font-medium"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg font-bold">{pq.payer}</span>
+                                    <span class="badge badge-outline badge-lg"
                                         >{pq.amount.toLocaleString()} VND</span
                                     >
                                 </div>
-                                <div class="text-xs opacity-50 font-normal mr-2">
+                                <div class="mr-2 text-xs font-normal opacity-50">
                                     Click to view QR
                                 </div>
                             </div>
                             <div class="collapse-content">
                                 <div
-                                    class="flex flex-col md:flex-row gap-6 items-center p-2 border-t border-base-200 pt-4"
+                                    class="flex flex-col items-center gap-6 border-t border-base-200 p-2 pt-4 md:flex-row"
                                 >
                                     <div
-                                        class="bg-white p-2 rounded-lg border border-base-200 shadow-sm shrink-0"
+                                        class="shrink-0 rounded-lg border border-base-200 bg-white p-2 shadow-sm"
                                     >
                                         {#if pq.qrDataUrl}
                                             <img
                                                 src={pq.qrDataUrl}
                                                 alt="QR"
-                                                class="w-48 h-48 block"
+                                                class="block h-48 w-48"
                                             />
                                         {:else}
                                             <div
-                                                class="w-48 h-48 flex items-center justify-center bg-base-100 text-xs text-error"
+                                                class="flex h-48 w-48 items-center justify-center bg-base-100 text-xs text-error"
                                             >
                                                 {pq.error ?? 'No QR'}
                                             </div>
                                         {/if}
                                     </div>
 
-                                    <div class="flex-1 space-y-3 w-full">
+                                    <div class="w-full flex-1 space-y-3">
                                         <div>
                                             <div class="text-sm opacity-70">Payment for</div>
-                                            <div class="font-bold text-lg">{pq.payer}</div>
+                                            <div class="text-lg font-bold">{pq.payer}</div>
                                             <div class="font-mono text-xl">
                                                 {pq.amount.toLocaleString()} VND
                                             </div>
                                         </div>
 
-                                        <div class="flex gap-2 flex-wrap">
+                                        <div class="flex flex-wrap gap-2">
                                             {#if pq.emvPayload}
                                                 <button
                                                     class="btn btn-sm"
@@ -687,7 +687,7 @@
                                             {/if}
                                             {#if pq.qrDataUrl}
                                                 <button
-                                                    class="btn btn-sm btn-outline"
+                                                    class="btn btn-outline btn-sm"
                                                     on:click={() =>
                                                         downloadPng(
                                                             pq.qrDataUrl!,
@@ -706,7 +706,7 @@
                                                         Open QR page
                                                     </a>
                                                     <button
-                                                        class="btn btn-sm btn-ghost"
+                                                        class="btn btn-ghost btn-sm"
                                                         on:click={() =>
                                                             copyToClipboard(
                                                                 `${location.origin}/qr?d=${d}`
@@ -720,15 +720,15 @@
 
                                         {#if pq.emvPayload}
                                             <div
-                                                class="collapse collapse-plus bg-base-200 rounded-lg text-xs"
+                                                class="collapse-plus collapse rounded-lg bg-base-200 text-xs"
                                             >
                                                 <input type="checkbox" />
-                                                <div class="collapse-title min-h-0 py-2 px-4">
+                                                <div class="collapse-title min-h-0 px-4 py-2">
                                                     Debug: EMV payload
                                                 </div>
                                                 <div class="collapse-content">
                                                     <pre
-                                                        class="whitespace-pre-wrap break-all pt-2 font-mono opacity-70">{pq.emvPayload}</pre>
+                                                        class="pt-2 font-mono break-all whitespace-pre-wrap opacity-70">{pq.emvPayload}</pre>
                                                 </div>
                                             </div>
                                         {/if}
@@ -741,7 +741,7 @@
             </div>
         </section>
 
-        <footer class="text-center opacity-60 text-xs mb-12">
+        <footer class="mb-12 text-center text-xs opacity-60">
             This is a serverless link. The recomputed link (with config) persists how the owner
             assigned items.
         </footer>

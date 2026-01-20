@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type {AiBillInput, SharedBillPayload} from '$lib/bill/types';
+    import type {AiBillInput} from '$lib/bill/types';
     import {validateAiBill} from '$lib/bill/validate';
     import {buildSharedBillPayload, computeItemsTotal, toIntVnd} from '$lib/bill/utils';
     import {encodeForUrl} from '$lib/bill/codec';
@@ -9,6 +9,10 @@
     export let data: PageData;
 
     let didApplyPreset = false;
+
+    // --- Create UI mode: Parse vs Edit ---
+    type CreateMode = 'parse' | 'edit';
+    let mode: CreateMode = 'parse';
 
     let rawJson = `{
   "billName": "Pizza 4P's",
@@ -26,9 +30,10 @@
     let parsed: AiBillInput | null = null;
     let validationErrors: string[] = [];
 
-    // Owner inputs (added after AI parse)
+    // Owner inputs
     let ownerBank: string = '';
     let ownerAccountNumber = '';
+    let highlightOwnerInfo = false;
 
     // Apply presets exactly once on initial load
     if (!didApplyPreset) {
@@ -37,18 +42,28 @@
         didApplyPreset = true;
     }
 
+    function switchMode(next: CreateMode) {
+        mode = next;
+
+        // When going back to Parse, show current edited JSON
+        if (next === 'parse' && parsed) {
+            rawJson = JSON.stringify(parsed, null, 2);
+        }
+    }
+
+    $: hasOwnerInfo =
+        ownerBank.trim().length > 0 && ownerAccountNumber.replace(/\s+/g, '').length > 0;
+
+    $: if (hasOwnerInfo) {
+        highlightOwnerInfo = false;
+    }
+
     $: bookmarkUrl =
         `${location.origin}/?` +
         `bank=${encodeURIComponent(ownerBank.trim())}&` +
         `accountNumber=${encodeURIComponent(ownerAccountNumber.replace(/\s+/g, ''))}`;
 
-    // Derived
-    let shareUrl: string | null = null;
-    let sharePayload: SharedBillPayload | null = null;
-
     function onParse() {
-        shareUrl = null;
-        sharePayload = null;
         validationErrors = [];
         parsed = null;
 
@@ -67,50 +82,118 @@
         }
 
         parsed = res.value;
-        if (!parsed.extras) {
-            parsed.extras = {tax: 0, tip: 0, discount: 0};
-        }
+
+        // Normalize extras for a stable UI
+        if (!parsed.extras) parsed.extras = {tax: 0, tip: 0, discount: 0};
+
+        mode = 'edit';
     }
 
-    $: canGenerate =
-        !!parsed &&
-        ownerBank.trim().length > 0 &&
-        ownerAccountNumber.replace(/\s+/g, '').length > 0;
-
-    function onGenerateLink() {
+    function openBillPage() {
         if (!parsed) return;
-        if (!canGenerate) {
-            validationErrors = [
-                'Please fill in bank and account number before generating the link.',
-            ];
+
+        validationErrors = [];
+
+        if (!hasOwnerInfo) {
+            validationErrors = ['Please fill in bank and account number before continuing.'];
+            highlightOwnerInfo = true;
             return;
         }
 
-        sharePayload = buildSharedBillPayload({
+        if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+            validationErrors = ['Please add at least 1 item before continuing.'];
+            return;
+        }
+
+        // Optional light guard: item names shouldn't be empty
+        const badIdx = parsed.items.findIndex(it => String(it.name ?? '').trim().length === 0);
+        if (badIdx >= 0) {
+            validationErrors = [`Item ${badIdx + 1} name is empty.`];
+            return;
+        }
+
+        const sharedPayload = buildSharedBillPayload({
             ai: parsed,
             ownerBank,
             ownerAccountNumber,
         });
 
-        const encoded = encodeForUrl(sharePayload);
-        // SvelteKit route we'll create next: /bill?b=...
-        shareUrl = `${location.origin}/bill?b=${encoded}`;
+        const encoded = encodeForUrl(sharedPayload);
+        const url = `/bill?b=${encoded}`;
+
+        // Navigate immediately
+        window.location.assign(url);
     }
 
     function formatVnd(n: number): string {
-        // Keep simple; avoid locale quirks in v1
         return `${Math.round(n)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
     $: itemsTotal = parsed
         ? computeItemsTotal(parsed.items.map(i => ({qty: i.qty, unitPrice: i.unitPrice})))
         : 0;
+
     $: extrasNet = parsed?.extras
         ? toIntVnd(parsed.extras.tax) +
           toIntVnd(parsed.extras.tip) -
           toIntVnd(parsed.extras.discount)
         : 0;
+
     $: computedBillTotal = itemsTotal + extrasNet;
+
+    // --- Edit helpers ---
+    function setBillName(v: string) {
+        if (!parsed) return;
+        parsed = {...parsed, billName: v};
+    }
+
+    function setItemName(idx: number, v: string) {
+        if (!parsed) return;
+        const items = parsed.items.slice();
+        items[idx] = {...items[idx], name: v};
+        parsed = {...parsed, items};
+    }
+
+    function setItemQty(idx: number, v: string) {
+        if (!parsed) return;
+        const items = parsed.items.slice();
+        const qty = Math.max(1, Math.round(toIntVnd(v)));
+        items[idx] = {...items[idx], qty};
+        parsed = {...parsed, items};
+    }
+
+    function setItemUnitPrice(idx: number, v: string) {
+        if (!parsed) return;
+        const items = parsed.items.slice();
+        const unitPrice = Math.max(0, toIntVnd(v));
+        items[idx] = {...items[idx], unitPrice};
+        parsed = {...parsed, items};
+    }
+
+    function addItem() {
+        if (!parsed) return;
+        parsed = {
+            ...parsed,
+            items: [...parsed.items, {name: '', qty: 1, unitPrice: 0}],
+        };
+    }
+
+    function removeItem(idx: number) {
+        if (!parsed) return;
+        parsed = {...parsed, items: parsed.items.filter((_, i) => i !== idx)};
+    }
+
+    function setExtra(key: 'tax' | 'tip' | 'discount', v: string) {
+        if (!parsed) return;
+        const next = Math.max(0, toIntVnd(v));
+        parsed = {
+            ...parsed,
+            extras: {
+                ...(parsed.extras ?? {tax: 0, tip: 0, discount: 0}),
+                [key]: next,
+            },
+        };
+    }
 
     const AI_PROMPT = `You are a data extraction assistant. Extract a restaurant or retail receipt from the attached image(s) into a STRICT JSON object that matches the required format below.
 
@@ -172,18 +255,44 @@ Now extract the receipt into the JSON format exactly.`;
 </svelte:head>
 
 <main class="container mx-auto max-w-4xl p-6">
-    <h1 class="mb-6 text-3xl font-bold">Create a Bill (Owner)</h1>
+    <h1 class="mb-4 text-3xl font-bold">Create a Bill (Owner)</h1>
 
-    <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
+    <div class="tabs-boxed mb-6 tabs">
+        <button
+            class="tab"
+            class:tab-active={mode === 'parse'}
+            on:click={() => switchMode('parse')}
+        >
+            Parse JSON
+        </button>
+
+        <button
+            class="tab"
+            class:tab-active={mode === 'edit'}
+            disabled={!parsed}
+            on:click={() => switchMode('edit')}
+            title={!parsed ? 'Parse valid JSON first' : ''}
+        >
+            Edit
+        </button>
+    </div>
+
+    <div
+        class="card mb-6 border border-base-200 bg-base-100 shadow-xl"
+        class:border-base-200={!highlightOwnerInfo}
+        class:border-error={highlightOwnerInfo}
+        class:ring-2={highlightOwnerInfo}
+        class:ring-error={highlightOwnerInfo}
+    >
         <div class="card-body">
-            <h2 class="card-title text-xl">1) Owner payment info</h2>
+            <h2 class="card-title text-xl">1) Owner Payment Information</h2>
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="form-control w-full">
                     <div class="label">
                         <span class="label-text font-semibold">Bank</span>
                     </div>
-                    <select bind:value={ownerBank} class="select select-bordered w-full">
+                    <select bind:value={ownerBank} class="select-bordered select w-full">
                         <option value="" disabled selected> Select a bank </option>
 
                         {#each BANKS as bank (bank)}
@@ -208,13 +317,13 @@ Now extract the receipt into the JSON format exactly.`;
                     <input
                         bind:value={ownerAccountNumber}
                         placeholder="digits only"
-                        class="input input-bordered w-full"
+                        class="input-bordered input w-full"
                     />
                 </div>
             </div>
 
-            {#if ownerBank.trim() && ownerAccountNumber.replace(/\s+/g, '').length}
-                <div class="collapse collapse-arrow bg-base-200 mt-4 rounded-box">
+            {#if hasOwnerInfo}
+                <div class="collapse-arrow collapse mt-4 rounded-box bg-base-200">
                     <input type="checkbox" />
                     <div class="collapse-title font-semibold">Bookmark this setup</div>
                     <div class="collapse-content">
@@ -225,14 +334,12 @@ Now extract the receipt into the JSON format exactly.`;
                             <input
                                 readonly
                                 value={bookmarkUrl}
-                                class="input input-bordered input-sm mb-3 w-full"
+                                class="input-bordered input input-sm mb-3 w-full"
                             />
                         {/key}
                         <button
-                            class="btn btn-sm btn-outline"
-                            on:click={() => {
-                                navigator.clipboard.writeText(bookmarkUrl);
-                            }}
+                            class="btn btn-outline btn-sm"
+                            on:click={() => navigator.clipboard.writeText(bookmarkUrl)}
                         >
                             Copy bookmark link
                         </button>
@@ -242,85 +349,88 @@ Now extract the receipt into the JSON format exactly.`;
         </div>
     </div>
 
-    <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
-        <div class="card-body">
-            <h2 class="card-title text-xl">2) Extract bill JSON using AI</h2>
+    {#if mode === 'parse'}
+        <div class="card mb-6 border border-base-200 bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title text-xl">2) Extract Bill Data (AI)</h2>
 
-            <p class="text-sm opacity-85">
-                Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this prompt,
-                and make sure the AI outputs
-                <strong>JSON only</strong>. Then paste the result below.
-            </p>
+                <p class="text-sm opacity-85">
+                    Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this
+                    prompt, and make sure the AI outputs <strong>JSON only</strong>. Then paste the
+                    result below.
+                </p>
 
-            <div class="mt-2 flex flex-wrap items-center gap-3">
-                <button class="btn btn-secondary btn-sm" on:click={() => copyText(AI_PROMPT)}
-                    >Copy AI prompt</button
-                >
-                <span class="badge badge-ghost">Multimodal • Image → JSON</span>
-            </div>
-
-            <div class="collapse collapse-arrow bg-base-200 mt-4 rounded-box">
-                <input type="checkbox" />
-                <div class="collapse-title font-semibold">Show prompt</div>
-                <div class="collapse-content">
-                    <pre class="bg-base-300 whitespace-pre-wrap rounded-lg p-3 text-xs">{AI_PROMPT}</pre>
-                </div>
-            </div>
-
-            <div class="divider"></div>
-
-            <h3 class="mb-2 text-lg font-semibold">Paste AI JSON</h3>
-            <p class="mb-2 text-sm opacity-85">
-                Paste the JSON produced by your multimodal AI using our prompt. Then click “Parse &
-                Validate”.
-            </p>
-
-            <textarea
-                bind:value={rawJson}
-                rows="14"
-                class="textarea textarea-bordered w-full font-mono text-sm"
-            ></textarea>
-
-            <div class="mt-4 flex items-center gap-3">
-                <button class="btn btn-primary" on:click={onParse}>Parse & Validate</button>
-                {#if parsed}
-                    <span class="badge badge-success gap-2">Valid ✅</span>
-                {/if}
-            </div>
-
-            {#if validationErrors.length > 0}
-                <div class="alert alert-error mt-4">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-6 w-6 shrink-0 stroke-current"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        ><path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        /></svg
+                <div class="mt-2 flex flex-wrap items-center gap-3">
+                    <button class="btn btn-sm btn-secondary" on:click={() => copyText(AI_PROMPT)}
+                        >Copy AI prompt</button
                     >
-                    <div>
-                        <h3 class="font-bold">Fix these issues:</h3>
-                        <ul class="list-inside list-disc text-sm">
-                            {#each validationErrors as err (err)}
-                                <li>{err}</li>
-                            {/each}
-                        </ul>
+                    <span class="badge badge-ghost">Multimodal • Image → JSON</span>
+                </div>
+
+                <div class="collapse-arrow collapse mt-4 rounded-box bg-base-200">
+                    <input type="checkbox" />
+                    <div class="collapse-title font-semibold">Show prompt</div>
+                    <div class="collapse-content">
+                        <pre class="rounded-lg bg-base-300 p-3 text-xs whitespace-pre-wrap">
+{AI_PROMPT}</pre>
                     </div>
                 </div>
-            {/if}
+
+                <div class="divider"></div>
+
+                <p class="mb-2 text-lg font-semibold">Paste AI JSON below:</p>
+
+                <textarea
+                    bind:value={rawJson}
+                    rows="14"
+                    class="textarea-bordered textarea w-full font-mono text-sm"
+                ></textarea>
+
+                <div class="mt-4 flex items-center gap-3">
+                    <button class="btn btn-primary" on:click={onParse}>Parse & Validate</button>
+                    {#if parsed}
+                        <span class="badge gap-2 badge-success">Valid ✅</span>
+                    {/if}
+                </div>
+
+                {#if validationErrors.length > 0}
+                    <div class="mt-4 alert alert-error">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6 shrink-0 stroke-current"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            /></svg
+                        >
+                        <div>
+                            <h3 class="font-bold">Fix these issues:</h3>
+                            <ul class="list-inside list-disc text-sm">
+                                {#each validationErrors as err (err)}
+                                    <li>{err}</li>
+                                {/each}
+                            </ul>
+                        </div>
+                    </div>
+                {/if}
+            </div>
         </div>
-    </div>
+    {/if}
 
-    {#if parsed}
-        <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
+    {#if mode === 'edit' && parsed}
+        <div class="card mb-6 border border-base-200 bg-base-100 shadow-xl">
             <div class="card-body">
-                <h2 class="card-title text-xl">3) Review</h2>
+                <h2 class="card-title text-xl">2) Edit Bill</h2>
+                <p class="text-sm opacity-80">
+                    Adjust bill name, items, quantities, prices, and extras. Totals update
+                    instantly.
+                </p>
 
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="form-control w-full">
                         <div class="label">
                             <span class="label-text font-semibold"
@@ -329,28 +439,20 @@ Now extract the receipt into the JSON format exactly.`;
                         </div>
                         <input
                             value={parsed.billName}
-                            class="input input-bordered w-full"
-                            on:input={e =>
-                                (parsed = parsed
-                                    ? {
-                                          ...parsed,
-                                          billName: (e.currentTarget as HTMLInputElement).value,
-                                      }
-                                    : parsed)}
+                            class="input-bordered input w-full"
+                            on:input={e => setBillName((e.currentTarget as HTMLInputElement).value)}
                         />
                     </div>
 
-                    <div class="bg-base-200 rounded-lg p-3 text-sm">
+                    <div class="rounded-lg bg-base-200 p-3 text-sm">
                         <div class="flex justify-between">
                             <span>Items total:</span>
                             <span class="font-medium">{formatVnd(itemsTotal)} VND</span>
                         </div>
-                        {#if parsed.extras}
-                            <div class="flex justify-between">
-                                <span>Extras net:</span>
-                                <span class="font-medium">{formatVnd(extrasNet)} VND</span>
-                            </div>
-                        {/if}
+                        <div class="flex justify-between">
+                            <span>Extras net:</span>
+                            <span class="font-medium">{formatVnd(extrasNet)} VND</span>
+                        </div>
                         <div class="mt-2 flex justify-between border-t border-base-content/20 pt-2">
                             <span class="font-bold">Computed total:</span>
                             <span class="font-bold text-primary"
@@ -360,92 +462,154 @@ Now extract the receipt into the JSON format exactly.`;
                     </div>
                 </div>
 
-                <div class="overflow-x-auto mt-4">
-                    <table class="table table-zebra w-full">
+                <div class="divider my-5"></div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div class="form-control">
+                        <div class="label"><span class="label-text">Tax</span></div>
+                        <input
+                            class="input-bordered input"
+                            inputmode="numeric"
+                            value={String(parsed.extras?.tax ?? 0)}
+                            on:input={e =>
+                                setExtra('tax', (e.currentTarget as HTMLInputElement).value)}
+                        />
+                    </div>
+                    <div class="form-control">
+                        <div class="label"><span class="label-text">Tip</span></div>
+                        <input
+                            class="input-bordered input"
+                            inputmode="numeric"
+                            value={String(parsed.extras?.tip ?? 0)}
+                            on:input={e =>
+                                setExtra('tip', (e.currentTarget as HTMLInputElement).value)}
+                        />
+                    </div>
+                    <div class="form-control">
+                        <div class="label"><span class="label-text">Discount</span></div>
+                        <input
+                            class="input-bordered input"
+                            inputmode="numeric"
+                            value={String(parsed.extras?.discount ?? 0)}
+                            on:input={e =>
+                                setExtra('discount', (e.currentTarget as HTMLInputElement).value)}
+                        />
+                    </div>
+                </div>
+
+                <div class="divider my-5"></div>
+
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-lg font-semibold">Items</h3>
+                    <button class="btn btn-sm btn-secondary" on:click={addItem}>Add item</button>
+                </div>
+
+                <div class="mt-3 overflow-x-auto">
+                    <table class="table w-full table-zebra">
                         <thead>
                             <tr>
                                 <th>Item</th>
                                 <th class="text-right">Qty</th>
                                 <th class="text-right">Unit (VND)</th>
                                 <th class="text-right">Line (VND)</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {#each parsed.items as it (it)}
+                            {#each parsed.items as it, idx (idx)}
                                 <tr>
-                                    <td>{it.name}</td>
-                                    <td class="text-right">{it.qty}</td>
-                                    <td class="text-right">{formatVnd(it.unitPrice)}</td>
-                                    <td class="text-right font-medium"
-                                        >{formatVnd(it.qty * it.unitPrice)}</td
-                                    >
+                                    <td class="min-w-[220px]">
+                                        <input
+                                            class="input-bordered input input-sm w-full"
+                                            value={it.name}
+                                            placeholder="Item name"
+                                            on:input={e =>
+                                                setItemName(
+                                                    idx,
+                                                    (e.currentTarget as HTMLInputElement).value
+                                                )}
+                                        />
+                                    </td>
+                                    <td class="min-w-[110px] text-right">
+                                        <input
+                                            class="input-bordered input input-sm w-full text-right"
+                                            inputmode="numeric"
+                                            value={String(it.qty)}
+                                            on:input={e =>
+                                                setItemQty(
+                                                    idx,
+                                                    (e.currentTarget as HTMLInputElement).value
+                                                )}
+                                        />
+                                    </td>
+                                    <td class="min-w-[150px] text-right">
+                                        <input
+                                            class="input-bordered input input-sm w-full text-right"
+                                            inputmode="numeric"
+                                            value={String(it.unitPrice)}
+                                            on:input={e =>
+                                                setItemUnitPrice(
+                                                    idx,
+                                                    (e.currentTarget as HTMLInputElement).value
+                                                )}
+                                        />
+                                    </td>
+                                    <td class="min-w-[140px] text-right font-medium">
+                                        {formatVnd(it.qty * it.unitPrice)}
+                                    </td>
+                                    <td class="text-right">
+                                        <button
+                                            class="btn text-error btn-ghost btn-sm"
+                                            on:click={() => removeItem(idx)}
+                                            title="Remove"
+                                        >
+                                            Remove
+                                        </button>
+                                    </td>
                                 </tr>
                             {/each}
                         </tbody>
                     </table>
                 </div>
 
-                {#if parsed.extras}
-                    <div class="alert alert-ghost mt-4 text-sm">
+                {#if validationErrors.length > 0}
+                    <div class="mt-4 alert alert-error">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6 shrink-0 stroke-current"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            /></svg
+                        >
                         <div>
-                            <span class="font-bold">Extras:</span>
-                            Tax: {formatVnd(toIntVnd(parsed.extras.tax))}, Tip: {formatVnd(
-                                toIntVnd(parsed.extras.tip)
-                            )}, Discount: {formatVnd(toIntVnd(parsed.extras.discount))}
+                            <h3 class="font-bold">Fix these issues:</h3>
+                            <ul class="list-inside list-disc text-sm">
+                                {#each validationErrors as err (err)}
+                                    <li>{err}</li>
+                                {/each}
+                            </ul>
                         </div>
                     </div>
                 {/if}
-            </div>
-        </div>
 
-        <div class="mt-8 mb-12">
-            <div class="flex items-center gap-3">
-                <button
-                    class="btn btn-primary btn-lg"
-                    on:click={onGenerateLink}
-                    disabled={!canGenerate}
-                >
-                    Generate share link
-                </button>
-                {#if shareUrl}
-                    <div class="badge badge-success badge-lg gap-2">Link ready ✅</div>
-                {/if}
-            </div>
-
-            {#if shareUrl}
-                <div class="alert alert-info mt-6 shadow-lg">
-                    <div class="w-full">
-                        <h3 class="font-bold">Share this link with friends:</h3>
-                        <input
-                            readonly
-                            value={shareUrl}
-                            class="input input-bordered w-full mt-2 text-sm"
-                        />
-                        <div class="mt-3 flex gap-2">
-                            <button
-                                class="btn btn-sm btn-outline bg-base-100"
-                                on:click={() => {
-                                    navigator.clipboard.writeText(shareUrl ?? '');
-                                }}
-                            >
-                                Copy link
-                            </button>
-
-                            <a href={shareUrl} class="btn btn-sm btn-neutral"> Open bill page </a>
-                        </div>
-
-                        <div class="collapse collapse-arrow bg-base-100/50 mt-4 rounded-box">
-                            <input type="checkbox" />
-                            <div class="collapse-title text-sm font-medium">
-                                Debug: payload preview
-                            </div>
-                            <div class="collapse-content">
-                                <pre class="text-xs">{JSON.stringify(sharePayload, null, 2)}</pre>
-                            </div>
-                        </div>
-                    </div>
+                <div class="mt-6 flex items-center gap-3">
+                    <button class="btn btn-primary" on:click={openBillPage}>
+                        Generate bill link
+                    </button>
+                    <button class="btn btn-outline" on:click={() => switchMode('parse')}>
+                        Back to JSON
+                    </button>
                 </div>
-            {/if}
+
+                <div class="mt-2 text-xs opacity-60">
+                    This app is client-only. Your bill is encoded into the URL (no server storage).
+                </div>
+            </div>
         </div>
     {/if}
 </main>
