@@ -582,7 +582,7 @@
                     <div class="flex flex-col gap-4">
                         <div class="flex items-center gap-3">
                             <button class="btn btn-primary" on:click={recomputeAndSave}>
-                                Recompute split (save to URL)
+                                Recompute split (new URL)
                             </button>
                             <span class="text-sm opacity-70">
                                 Updates the link to share with friends.
@@ -590,23 +590,21 @@
                         </div>
 
                         {#if newUrl}
-                            <div class="alert alert-success shadow-sm">
-                                <div class="w-full">
-                                    <h3 class="text-sm font-bold">New link generated:</h3>
-                                    <div class="mt-2 flex gap-2">
-                                        <input
-                                            readonly
-                                            bind:value={newUrl}
-                                            class="input-bordered input input-sm w-full bg-base-100"
-                                        />
-                                        <button
-                                            class="btn btn-sm"
-                                            on:click={() => copyToClipboard(newUrl)}
-                                        >
-                                            Copy
-                                        </button>
-                                    </div>
-                                </div>
+                            <div class="flex items-center gap-2 border border-base-200 p-3">
+                                <h3 class="text-sm font-bold whitespace-nowrap">
+                                    New link generated:
+                                </h3>
+                                <input
+                                    readonly
+                                    bind:value={newUrl}
+                                    class="input-bordered input input-sm w-full bg-base-100"
+                                />
+                                <button class="btn btn-sm" on:click={() => copyToClipboard(newUrl)}>
+                                    Copy Link
+                                </button>
+                                <a href={newUrl} target="_blank" class="btn btn-sm btn-neutral">
+                                    Open Link
+                                </a>
                             </div>
                         {/if}
                     </div>
