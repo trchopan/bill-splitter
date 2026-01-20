@@ -26,8 +26,8 @@ describe('bill/+page.svelte', () => {
             currencyNumeric: '704' as const,
             owner: {bank: 'VCB', accountNumber: '123'},
             items: [
-                {id: 'pizza', name: 'Pizza', qty: 1, unitPrice: 1000}, // line 1000
-                {id: 'coke', name: 'Coke', qty: 3, unitPrice: 500}, // line 1500
+                {id: 'pizza', name: 'Pizza', qty: 1, unitPrice: 1000}, // 1000
+                {id: 'coke', name: 'Coke', qty: 3, unitPrice: 500}, // 1500
             ],
             extras: {tax: 0, tip: 0, discount: 0},
         };
@@ -36,35 +36,34 @@ describe('bill/+page.svelte', () => {
 
         render(BillPage, {data});
 
-        // header renders
+        // Header renders
         await expect.element(page.getByRole('heading', {name: 'Test Bill'})).toBeInTheDocument();
-        await expect.element(page.getByText('Pay to: VCB • 123')).toBeInTheDocument();
 
-        // On mount defaults payers to Alice/Bob and assigns all items to Alice
-        await expect.element(page.getByText('Alice').first()).toBeInTheDocument();
-        await expect.element(page.getByText('Bob').first()).toBeInTheDocument();
+        // Stable "Pay to" block
+        await expect.element(page.getByTestId('pay-to')).toHaveTextContent('VCB • 123');
 
-        // Initial subtotals: Alice=2500, Bob=0
-        await expect.element(page.getByText('2,500 VND').first()).toBeInTheDocument();
+        // On mount defaults payers to Alice/Bob and generates QR totals
+        await expect.element(page.getByTestId('payer-amount-Alice')).toBeInTheDocument();
+        await expect.element(page.getByTestId('payer-amount-Bob')).toBeInTheDocument();
 
-        // There are 2 Bob checkboxes (one per item). Order should match item order.
-        const bobBoxesLocator = page.getByRole('checkbox', {name: 'Bob'});
-        const bobBoxes = bobBoxesLocator.all();
+        // Initial: Alice has all 2500
+        await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('2,500 VND');
+
+        // There are 2 Bob checkboxes (one per item). Use aria name "Bob".
+        const bobBoxes = page.getByRole('checkbox', {name: 'Bob'}).all();
         expect(bobBoxes.length).toBeGreaterThanOrEqual(2);
 
-        // Share Pizza with Bob (Pizza 1000 -> 500/500)
+        // Share Pizza with Bob (1000 => 500/500)
         await userEvent.click(bobBoxes[0]);
 
-        // Now Alice should have 500 (pizza) + 1500 (coke) = 2000
-        // Bob should have 500
-        await expect.element(page.getByText('2,000 VND').first()).toBeInTheDocument();
-        await expect.element(page.getByText('500 VND').first()).toBeInTheDocument();
+        await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('2,000 VND');
+        await expect.element(page.getByTestId('payer-amount-Bob')).toHaveTextContent('500 VND');
 
-        // Share Coke with Bob too (Coke 1500 -> 750/750)
+        // Share Coke with Bob too (1500 => 750/750)
         await userEvent.click(bobBoxes[1]);
 
-        // Now totals should be Alice 500+750=1250, Bob 500+750=1250
-        await expect.element(page.getByText('1,250 VND').first()).toBeInTheDocument();
+        await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('1,250 VND');
+        await expect.element(page.getByTestId('payer-amount-Bob')).toHaveTextContent('1,250 VND');
     });
 
     it('should split with integer rounding (remainder goes to first payer in payer order)', async () => {
@@ -74,9 +73,7 @@ describe('bill/+page.svelte', () => {
             countryCode: 'VN' as const,
             currencyNumeric: '704' as const,
             owner: {bank: 'VCB', accountNumber: '123'},
-            items: [
-                {id: 'odd', name: 'Odd Item', qty: 1, unitPrice: 1001}, // split between 2 => 501 + 500
-            ],
+            items: [{id: 'odd', name: 'Odd Item', qty: 1, unitPrice: 1001}],
             extras: {tax: 0, tip: 0, discount: 0},
         };
 
@@ -89,14 +86,14 @@ describe('bill/+page.svelte', () => {
             .toBeInTheDocument();
 
         // Default: Alice has all 1001
-        await expect.element(page.getByText('1,001 VND').first()).toBeInTheDocument();
+        await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('1,001 VND');
 
-        // Click Bob checkbox for the only item
+        // Click Bob checkbox for the only item (adds Bob to split)
         const bobBox = page.getByRole('checkbox', {name: 'Bob'});
         await userEvent.click(bobBox);
 
-        // With remainder policy (Alice first), Alice=501, Bob=500 should appear
-        await expect.element(page.getByText('501 VND').first()).toBeInTheDocument();
-        await expect.element(page.getByText('500 VND').first()).toBeInTheDocument();
+        // With remainder to first payer (Alice first): 1001 => 501 / 500
+        await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('501 VND');
+        await expect.element(page.getByTestId('payer-amount-Bob')).toHaveTextContent('500 VND');
     });
 });

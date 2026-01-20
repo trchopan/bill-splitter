@@ -6,19 +6,19 @@
     import {onMount} from 'svelte';
     import {SvelteURLSearchParams} from 'svelte/reactivity';
 
+    import {
+        computeItemsSubtotal,
+        computeExtrasNet,
+        computePayerTotals,
+        type SplitConfig,
+    } from '$lib/bill/split';
+
     export let data: PageData;
 
     // shared bill payload from loader
     $: shared = data.ok ? data.shared : null;
 
     // --- Split configuration state ---
-    type SplitMode = 'individual' | 'even';
-    type SplitConfig = {
-        mode: SplitMode;
-        payers: string[]; // order matters
-        assignments?: Record<string, string[]>; // itemId -> payerNames[] (only for individual)
-    };
-
     // Try to start from loader-provided config, else defaults
     let config: SplitConfig = {
         mode: 'individual',
@@ -145,116 +145,6 @@
         config = {...config, assignments: newAssignments};
     }
 
-    // --- Computations ---
-    function computeItemsSubtotal(): number {
-        if (!shared) return 0;
-        return shared.items.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
-    }
-
-    function computeExtrasNet(): number {
-        if (!shared || !shared.extras) return 0;
-        return (shared.extras.tax ?? 0) + (shared.extras.tip ?? 0) - (shared.extras.discount ?? 0);
-    }
-
-    function splitEvenly(lineTotal: number, payers: string[]): Record<string, number> {
-        const out: Record<string, number> = {};
-        const k = Math.max(1, payers.length);
-
-        const base = Math.floor(lineTotal / k);
-        let rem = lineTotal - base * k;
-
-        for (const p of payers) {
-            out[p] = base + (rem > 0 ? 1 : 0);
-            rem--;
-        }
-        return out;
-    }
-
-    // Per-payer item subtotal (individual mode) or equal split (even mode)
-    function computePayerSubtotals(): Record<string, number> {
-        const result: Record<string, number> = {};
-        for (const p of config.payers) result[p] = 0;
-
-        if (!shared) return result;
-
-        if (config.mode === 'individual') {
-            for (const it of shared.items) {
-                const selectedRaw =
-                    config.assignments &&
-                    config.assignments[it.id] &&
-                    config.assignments[it.id].length > 0
-                        ? config.assignments[it.id]
-                        : config.payers[0]
-                          ? [config.payers[0]]
-                          : [];
-
-                // keep only payers that still exist
-                const selected = selectedRaw.filter(p => config.payers.includes(p));
-                const finalSelected =
-                    selected.length > 0 ? selected : config.payers[0] ? [config.payers[0]] : [];
-
-                const lineTotal = it.qty * it.unitPrice;
-                const shares = splitEvenly(lineTotal, finalSelected);
-
-                for (const [payer, amt] of Object.entries(shares)) {
-                    if (result[payer] == null) result[payer] = 0;
-                    result[payer] += amt;
-                }
-            }
-        } else {
-            // even split: subtotal is divided equally across payers
-            const subtotal = computeItemsSubtotal();
-            const count = Math.max(1, config.payers.length);
-            const base = Math.floor(subtotal / count);
-            let remainder = subtotal - base * count;
-
-            for (let i = 0; i < config.payers.length; i++) {
-                const p = config.payers[i];
-                result[p] = base + (remainder > 0 ? 1 : 0);
-                remainder--;
-            }
-        }
-
-        return result;
-    }
-
-    // Each payer's extras share is proportional to their subtotal
-    function computePayerTotals(): Record<string, number> {
-        const itemsSubtotal = computeItemsSubtotal();
-        const extrasNet = computeExtrasNet();
-        const subtotals = computePayerSubtotals();
-        const totals: Record<string, number> = {};
-
-        if (itemsSubtotal === 0) {
-            // no items -> split extras evenly if any
-            const count = Math.max(1, config.payers.length);
-            const baseExtra = Math.floor(extrasNet / count);
-            let rem = extrasNet - baseExtra * count;
-            for (let i = 0; i < config.payers.length; i++) {
-                totals[config.payers[i]] = baseExtra + (rem > 0 ? 1 : 0);
-                rem--;
-            }
-            return totals;
-        }
-
-        // allocate proportional share of extras
-        for (const p of config.payers) {
-            const sub = subtotals[p] ?? 0;
-            const extrasShare = Math.round((sub / itemsSubtotal) * extrasNet);
-            const total = sub + extrasShare;
-            totals[p] = Math.max(0, Math.round(total));
-        }
-
-        // Fix rounding differences to match grand total (itemsSubtotal + extrasNet)
-        const grand = itemsSubtotal + extrasNet;
-        const diff = grand - Object.values(totals).reduce((a, b) => a + b, 0);
-        if (diff !== 0 && config.payers.length > 0) {
-            totals[config.payers[0]] = (totals[config.payers[0]] ?? 0) + diff;
-        }
-
-        return totals;
-    }
-
     // --- QR generation per payer ---
     type PayerQr = {
         payer: string;
@@ -273,7 +163,9 @@
             payerQrs = next;
             return;
         }
-        const totals = computePayerTotals();
+
+        const totals = computePayerTotals(shared, config);
+
         for (const payer of config.payers) {
             const amount = totals[payer] ?? 0;
             if (amount <= 0) {
@@ -290,6 +182,7 @@
                     currencyNumeric: shared.currencyNumeric ?? '704',
                     pointOfInitiationMethod: '12',
                 });
+
                 const qrDataUrl = await QRCode.toDataURL(payload, {
                     errorCorrectionLevel: 'M',
                     margin: 2,
@@ -308,6 +201,7 @@
                 next.push({payer, amount, error: e?.message ?? 'Failed to build QR'});
             }
         }
+
         payerQrs = next;
     }
 
@@ -398,7 +292,7 @@
             <div class="card border border-base-200 bg-base-100 p-4 shadow-sm">
                 <div class="text-sm opacity-85">
                     <div class="mb-1 font-semibold">Pay to:</div>
-                    <div class="rounded bg-base-200 p-2 font-mono text-xs">
+                    <div class="rounded bg-base-200 p-2 font-mono text-xs" data-testid="pay-to">
                         {shared.owner.bank} • {shared.owner.accountNumber}
                     </div>
                 </div>
@@ -493,22 +387,24 @@
                     <div class="space-y-2 rounded-lg bg-base-200 p-4 text-sm">
                         <div class="flex justify-between">
                             <span>Items subtotal:</span>
-                            <span class="font-medium"
-                                >{computeItemsSubtotal().toLocaleString()} VND</span
-                            >
+                            <span class="font-medium" data-testid="items-subtotal">
+                                {computeItemsSubtotal(shared).toLocaleString()} VND
+                            </span>
                         </div>
                         <div class="flex justify-between">
                             <span>Extras net:</span>
-                            <span class="font-medium"
-                                >{computeExtrasNet().toLocaleString()} VND</span
-                            >
+                            <span class="font-medium" data-testid="extras-net">
+                                {computeExtrasNet(shared).toLocaleString()} VND
+                            </span>
                         </div>
                         <div class="divider my-1"></div>
                         <div class="flex justify-between text-lg font-bold text-primary">
                             <span>Grand total:</span>
-                            <span
-                                >{(computeItemsSubtotal() + computeExtrasNet()).toLocaleString()} VND</span
-                            >
+                            <span data-testid="grand-total">
+                                {(
+                                    computeItemsSubtotal(shared) + computeExtrasNet(shared)
+                                ).toLocaleString()} VND
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -564,9 +460,9 @@
                                                 {/each}
                                             </div>
                                         {:else}
-                                            <span class="badge badge-ghost text-xs"
-                                                >— (even split)</span
-                                            >
+                                            <span class="badge badge-ghost text-xs">
+                                                — (even split)
+                                            </span>
                                         {/if}
                                     </td>
                                     <td class="text-right font-medium">
@@ -635,9 +531,12 @@
                             >
                                 <div class="flex items-center gap-2">
                                     <span class="text-lg font-bold">{pq.payer}</span>
-                                    <span class="badge badge-outline badge-lg"
-                                        >{pq.amount.toLocaleString()} VND</span
+                                    <span
+                                        class="badge badge-outline badge-lg"
+                                        data-testid={`payer-amount-${pq.payer}`}
                                     >
+                                        {pq.amount.toLocaleString()} VND
+                                    </span>
                                 </div>
                                 <div class="mr-2 text-xs font-normal opacity-50">
                                     Click to view QR
