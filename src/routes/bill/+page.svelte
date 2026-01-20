@@ -88,6 +88,7 @@
         if (!name) return;
         config = {...config, payers: [...config.payers, name]};
         newPayerName = '';
+        newUrl = '';
     }
 
     function removePayer(idx: number) {
@@ -108,6 +109,7 @@
         }
 
         config = {...config, payers: newPayers, assignments: newAssignments};
+        newUrl = '';
     }
 
     function renamePayer(idx: number, newName: string) {
@@ -124,6 +126,7 @@
         }
 
         config = {...config, payers: newPayers, assignments: newAssignments};
+        newUrl = '';
     }
 
     function toggleItemPayer(itemId: string, payerName: string, checked: boolean) {
@@ -143,6 +146,7 @@
 
         const newAssignments = {...(config.assignments ?? {}), [itemId]: next};
         config = {...config, assignments: newAssignments};
+        newUrl = '';
     }
 
     // --- QR generation per payer ---
