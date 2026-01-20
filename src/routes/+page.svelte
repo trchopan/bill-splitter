@@ -1,11 +1,7 @@
 <script lang="ts">
     import type {AiBillInput, SharedBillPayload} from '$lib/bill/types';
     import {validateAiBill} from '$lib/bill/validate';
-    import {
-        buildSharedBillPayload,
-        computeItemsTotal,
-        toIntVnd,
-    } from '$lib/bill/utils';
+    import {buildSharedBillPayload, computeItemsTotal, toIntVnd} from '$lib/bill/utils';
     import {encodeForUrl} from '$lib/bill/codec';
     import {BANKS} from '$lib/emvcode/EMVCodeUtil';
     import type {PageData} from './$types';
@@ -72,7 +68,7 @@
 
         parsed = res.value;
         if (!parsed.extras) {
-            parsed.extras = { tax: 0, tip: 0, discount: 0 };
+            parsed.extras = {tax: 0, tip: 0, discount: 0};
         }
     }
 
@@ -180,7 +176,71 @@ Now extract the receipt into the JSON format exactly.`;
     <h1>Create a Bill (Owner)</h1>
 
     <section style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;">
-        <h2 style="margin: 0 0 8px 0;">Extract bill JSON using AI</h2>
+        <h2>1) Owner payment info</h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div>
+                <label style="display:block; font-weight: 600; margin-bottom: 6px;"> Bank </label>
+
+                <select bind:value={ownerBank} style="width: 100%; padding: 8px;">
+                    <option value="" disabled selected> Select a bank </option>
+
+                    {#each BANKS as bank (bank)}
+                        <option value={bank.code}>
+                            {bank.shortName} ({bank.code})
+                        </option>
+                    {/each}
+                </select>
+
+                {#if ownerBank}
+                    <div style="margin-top: 6px; font-size: 13px; opacity: 0.8;">
+                        {BANKS.find(b => b.code === ownerBank)?.name}
+                    </div>
+                {/if}
+            </div>
+
+            <div>
+                <label style="display:block; font-weight: 600; margin-bottom: 6px;">
+                    Account number
+                </label>
+                <input
+                    bind:value={ownerAccountNumber}
+                    placeholder="digits only"
+                    style="width: 100%; padding: 8px;"
+                />
+            </div>
+        </div>
+
+        {#if ownerBank.trim() && ownerAccountNumber.replace(/\s+/g, '').length}
+            <details style="margin-top: 10px;">
+                <summary style="cursor: pointer; font-weight: 600;">Bookmark this setup</summary>
+                <div
+                    style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;"
+                >
+                    <div style="opacity: 0.85; margin-bottom: 8px;">
+                        Save this link so next time your bank info is pre-filled.
+                    </div>
+
+                    {#key ownerBank + ownerAccountNumber}
+                        <input readonly value={bookmarkUrl} style="width: 100%; padding: 8px;" />
+                    {/key}
+
+                    <div style="margin-top: 8px; display:flex; gap: 8px; flex-wrap: wrap;">
+                        <button
+                            on:click={() => {
+                                navigator.clipboard.writeText(bookmarkUrl);
+                            }}
+                        >
+                            Copy bookmark link
+                        </button>
+                    </div>
+                </div>
+            </details>
+        {/if}
+    </section>
+
+    <section style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;">
+        <h2>2) Extract bill JSON using AI</h2>
 
         <p style="margin: 0; opacity: 0.85;">
             Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this prompt, and
@@ -200,10 +260,9 @@ Now extract the receipt into the JSON format exactly.`;
             <pre
                 style="margin-top: 10px; padding: 12px; background:#f7f7f7; border-radius: 8px; white-space: pre-wrap;">{AI_PROMPT}</pre>
         </details>
-    </section>
 
-    <section style="margin-top: 16px;">
-        <h2>1) Paste AI JSON</h2>
+        <h2 style="margin: 16px 0 8px 0;">Paste AI JSON</h2>
+
         <p style="margin: 8px 0; opacity: 0.85;">
             Paste the JSON produced by your multimodal AI using our prompt. Then click “Parse &
             Validate”.
@@ -237,7 +296,9 @@ Now extract the receipt into the JSON format exactly.`;
     </section>
 
     {#if parsed}
-        <section style="margin-top: 24px;">
+        <section
+            style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;"
+        >
             <h2>2) Review</h2>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -331,75 +392,6 @@ Now extract the receipt into the JSON format exactly.`;
         </section>
 
         <section style="margin-top: 24px;">
-            <h2>3) Owner payment info</h2>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                    <label style="display:block; font-weight: 600; margin-bottom: 6px;">
-                        Bank
-                    </label>
-
-                    <select bind:value={ownerBank} style="width: 100%; padding: 8px;">
-                        <option value="" disabled selected> Select a bank </option>
-
-                        {#each BANKS as bank (bank)}
-                            <option value={bank.code}>
-                                {bank.shortName} ({bank.code})
-                            </option>
-                        {/each}
-                    </select>
-
-                    {#if ownerBank}
-                        <div style="margin-top: 6px; font-size: 13px; opacity: 0.8;">
-                            {BANKS.find(b => b.code === ownerBank)?.name}
-                        </div>
-                    {/if}
-                </div>
-
-                <div>
-                    <label style="display:block; font-weight: 600; margin-bottom: 6px;">
-                        Account number
-                    </label>
-                    <input
-                        bind:value={ownerAccountNumber}
-                        placeholder="digits only"
-                        style="width: 100%; padding: 8px;"
-                    />
-                </div>
-            </div>
-
-            {#if ownerBank.trim() && ownerAccountNumber.replace(/\s+/g, '').length}
-                <details style="margin-top: 10px;">
-                    <summary style="cursor: pointer; font-weight: 600;">Bookmark this setup</summary
-                    >
-                    <div
-                        style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;"
-                    >
-                        <div style="opacity: 0.85; margin-bottom: 8px;">
-                            Save this link so next time your bank info is pre-filled.
-                        </div>
-
-                        {#key ownerBank + ownerAccountNumber}
-                            <input
-                                readonly
-                                value={bookmarkUrl}
-                                style="width: 100%; padding: 8px;"
-                            />
-                        {/key}
-
-                        <div style="margin-top: 8px; display:flex; gap: 8px; flex-wrap: wrap;">
-                            <button
-                                on:click={() => {
-                                    navigator.clipboard.writeText(bookmarkUrl);
-                                }}
-                            >
-                                Copy bookmark link
-                            </button>
-                        </div>
-                    </div>
-                </details>
-            {/if}
-
             <div style="display: flex; gap: 12px; align-items: center; margin-top: 12px;">
                 <button on:click={onGenerateLink} disabled={!canGenerate}>
                     Generate share link
