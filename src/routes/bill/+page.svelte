@@ -336,13 +336,14 @@
         return LZString.compressToEncodedURIComponent(JSON.stringify(obj));
     }
 
+    let newUrl = '';
+
     function recomputeAndSave() {
         if (!shared) return;
         const params = new SvelteURLSearchParams(window.location.search);
         params.set('b', params.get('b') ?? '');
         params.set('c', makeConfigParam());
-        const newUrl = `${location.pathname}?${params.toString()}`;
-        location.assign(newUrl);
+        newUrl = `${location.origin}${location.pathname}?${params.toString()}`;
     }
 
     // Auto-generate QRs when relevant state changes
@@ -357,321 +358,392 @@
     <title>Bill Split - Select Items (Editable)</title>
 </svelte:head>
 
-<main style="max-width:980px; margin:0 auto; padding:24px;">
+<main class="container mx-auto max-w-5xl p-6">
     {#if !data.ok}
-        <h1>Invalid bill link</h1>
-        <ul>
-            {#each data.errors as e (e)}
-                <li>{e}</li>
-            {/each}
-        </ul>
-        <p>Ask the bill owner to generate a new link.</p>
-    {:else if shared}
-        <header
-            style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start;"
-        >
+        <div class="alert alert-error shadow-lg">
             <div>
-                <h1 style="margin:0;">{shared.billName}</h1>
-                <div style="opacity:0.85; margin-top:6px;">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="stroke-current flex-shrink-0 h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    ><path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    /></svg
+                >
+                <div>
+                    <h3 class="font-bold">Invalid bill link</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        {#each data.errors as e (e)}
+                            <li>{e}</li>
+                        {/each}
+                    </ul>
+                    <div class="text-xs mt-1">Ask the bill owner to generate a new link.</div>
+                </div>
+            </div>
+        </div>
+    {:else if shared}
+        <header class="flex flex-col md:flex-row justify-between gap-4 items-start mb-6">
+            <div>
+                <h1 class="text-3xl font-bold">{shared.billName}</h1>
+                <div class="text-sm opacity-85 mt-2 max-w-2xl">
                     Owner can assign items to multiple payers, or choose even split. The app
                     generates per-payer QR codes automatically as you edit. Click Recompute to
                     persist the configuration.
                 </div>
             </div>
-            <div style="text-align:right; opacity:0.85;">
-                <div>
-                    <strong>Pay to:</strong>
-                    {shared.owner.bank} • {shared.owner.accountNumber}
+            <div class="card bg-base-100 border border-base-200 shadow-sm p-4">
+                <div class="text-sm opacity-85">
+                    <div class="font-semibold mb-1">Pay to:</div>
+                    <div class="font-mono text-xs bg-base-200 p-2 rounded">
+                        {shared.owner.bank} • {shared.owner.accountNumber}
+                    </div>
                 </div>
             </div>
         </header>
 
-        <section style="margin-top:18px; display:grid; grid-template-columns: 1fr 320px; gap:16px;">
-            <div>
-                <h2>Split mode & payers</h2>
+        <section class="grid grid-cols-1 md:grid-cols-[1fr_350px] gap-6 mb-8">
+            <div class="card bg-base-100 shadow-xl border border-base-200">
+                <div class="card-body">
+                    <h2 class="card-title text-xl">Split mode & payers</h2>
 
-                <div style="display:flex; gap:12px; align-items:center; margin-top:8px;">
-                    <label>
-                        <input type="radio" bind:group={config.mode} value="individual" /> Individual
-                    </label>
-                    <label><input type="radio" bind:group={config.mode} value="even" /> Even</label>
+                    <div class="flex gap-6 items-center my-2">
+                        <label class="label cursor-pointer gap-2">
+                            <input
+                                type="radio"
+                                bind:group={config.mode}
+                                value="individual"
+                                class="radio radio-primary"
+                            />
+                            <span class="label-text font-medium">Individual</span>
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <input
+                                type="radio"
+                                bind:group={config.mode}
+                                value="even"
+                                class="radio radio-primary"
+                            />
+                            <span class="label-text font-medium">Even Split</span>
+                        </label>
+                    </div>
+
+                    <div class="bg-base-200/50 rounded-lg p-4 border border-base-200">
+                        <div class="font-semibold mb-3 text-sm uppercase tracking-wide opacity-70">
+                            Payers
+                        </div>
+
+                        <div class="space-y-2">
+                            {#each config.payers as payer, idx (idx)}
+                                <div class="flex gap-2 items-center">
+                                    <input
+                                        value={payer}
+                                        on:input={e =>
+                                            renamePayer(
+                                                idx,
+                                                (e.currentTarget as HTMLInputElement).value
+                                            )}
+                                        class="input input-bordered input-sm flex-1"
+                                    />
+                                    <button
+                                        class="btn btn-sm btn-square btn-ghost text-error"
+                                        on:click={() => removePayer(idx)}
+                                        title="Remove"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            ><path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                            /></svg
+                                        >
+                                    </button>
+                                </div>
+                            {/each}
+                        </div>
+
+                        <div class="divider my-2"></div>
+
+                        <div class="flex gap-2">
+                            <input
+                                placeholder="New payer name"
+                                bind:value={newPayerName}
+                                class="input input-bordered input-sm flex-1"
+                                on:keydown={e => e.key === 'Enter' && addPayer()}
+                            />
+                            <button class="btn btn-sm btn-secondary" on:click={addPayer}>Add</button
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl border border-base-200 h-fit">
+                <div class="card-body">
+                    <h2 class="card-title text-xl">Quick totals</h2>
+                    <div class="bg-base-200 rounded-lg p-4 space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>Items subtotal:</span>
+                            <span class="font-medium"
+                                >{computeItemsSubtotal().toLocaleString()} VND</span
+                            >
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Extras net:</span>
+                            <span class="font-medium"
+                                >{computeExtrasNet().toLocaleString()} VND</span
+                            >
+                        </div>
+                        <div class="divider my-1"></div>
+                        <div class="flex justify-between text-lg font-bold text-primary">
+                            <span>Grand total:</span>
+                            <span
+                                >{(
+                                    computeItemsSubtotal() + computeExtrasNet()
+                                ).toLocaleString()} VND</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card bg-base-100 shadow-xl border border-base-200 mb-8">
+            <div class="card-body">
+                <h2 class="card-title text-xl mb-4">Assign items</h2>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra table-sm w-full">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="text-right">Unit (VND)</th>
+                                <th class="text-right">Qty</th>
+                                <th class="text-right min-w-[200px]">Assigned to</th>
+                                <th class="text-right">Line (VND)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each shared.items as it (it.id)}
+                                <tr>
+                                    <td class="font-medium">{it.name}</td>
+                                    <td class="text-right text-xs opacity-70"
+                                        >{it.unitPrice.toLocaleString()}</td
+                                    >
+                                    <td class="text-right">{it.qty}</td>
+                                    <td class="text-right">
+                                        {#if config.mode === 'individual'}
+                                            <div class="flex flex-col gap-1 items-end">
+                                                {#each config.payers as p (p)}
+                                                    <label
+                                                        class="label cursor-pointer py-0 gap-2 hover:bg-base-200 rounded px-1"
+                                                    >
+                                                        <span class="label-text text-xs">{p}</span>
+                                                        <input
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-xs checkbox-primary"
+                                                            checked={(
+                                                                config.assignments?.[it.id] ?? []
+                                                            ).includes(p)}
+                                                            on:change={e =>
+                                                                toggleItemPayer(
+                                                                    it.id,
+                                                                    p,
+                                                                    (
+                                                                        e.currentTarget as HTMLInputElement
+                                                                    ).checked
+                                                                )}
+                                                        />
+                                                    </label>
+                                                {/each}
+                                            </div>
+                                        {:else}
+                                            <span class="badge badge-ghost text-xs"
+                                                >— (even split)</span
+                                            >
+                                        {/if}
+                                    </td>
+                                    <td class="text-right font-medium">
+                                        {(it.qty * it.unitPrice).toLocaleString()}
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
                 </div>
 
-                <div
-                    style="margin-top:12px; padding:10px; border:1px solid #eee; border-radius:8px;"
-                >
-                    <div style="font-weight:600; margin-bottom:6px;">Payers</div>
-
-                    {#each config.payers as payer, idx (idx)}
-                        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-                            <input
-                                value={payer}
-                                on:input={e =>
-                                    renamePayer(idx, (e.currentTarget as HTMLInputElement).value)}
-                                style="flex:1; padding:6px;"
-                            />
-                            <button on:click={() => removePayer(idx)} style="padding:6px;">
-                                Remove
+                <div class="mt-6">
+                    <div class="flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-primary" on:click={recomputeAndSave}>
+                                Recompute split (save to URL)
                             </button>
+                            <span class="text-sm opacity-70">
+                                Updates the link to share with friends.
+                            </span>
+                        </div>
+
+                        {#if newUrl}
+                            <div class="alert alert-success shadow-sm">
+                                <div class="w-full">
+                                    <h3 class="font-bold text-sm">New link generated:</h3>
+                                    <div class="flex gap-2 mt-2">
+                                        <input
+                                            readonly
+                                            bind:value={newUrl}
+                                            class="input input-sm input-bordered w-full bg-base-100"
+                                        />
+                                        <button
+                                            class="btn btn-sm"
+                                            on:click={() => copyToClipboard(newUrl)}
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card bg-base-100 shadow-xl border border-base-200 mb-12">
+            <div class="card-body">
+                <h2 class="card-title text-xl">Per-payer QR codes</h2>
+
+                {#if payerQrs.length === 0}
+                    <div
+                        class="flex items-center justify-center p-8 border-2 border-dashed border-base-300 rounded-lg text-base-content/50"
+                    >
+                        Generating QRs...
+                    </div>
+                {/if}
+
+                <div class="space-y-3">
+                    {#each payerQrs as pq (pq.payer)}
+                        <div
+                            class="collapse collapse-arrow bg-base-100 border border-base-200 rounded-box"
+                        >
+                            <input type="checkbox" />
+                            <div class="collapse-title font-medium flex justify-between items-center">
+                                <div class="flex gap-2 items-center">
+                                    <span class="font-bold text-lg">{pq.payer}</span>
+                                    <span class="badge badge-lg badge-outline"
+                                        >{pq.amount.toLocaleString()} VND</span
+                                    >
+                                </div>
+                                <div class="text-xs opacity-50 font-normal mr-2">
+                                    Click to view QR
+                                </div>
+                            </div>
+                            <div class="collapse-content">
+                                <div
+                                    class="flex flex-col md:flex-row gap-6 items-center p-2 border-t border-base-200 pt-4"
+                                >
+                                    <div
+                                        class="bg-white p-2 rounded-lg border border-base-200 shadow-sm shrink-0"
+                                    >
+                                        {#if pq.qrDataUrl}
+                                            <img
+                                                src={pq.qrDataUrl}
+                                                alt="QR"
+                                                class="w-48 h-48 block"
+                                            />
+                                        {:else}
+                                            <div
+                                                class="w-48 h-48 flex items-center justify-center bg-base-100 text-xs text-error"
+                                            >
+                                                {pq.error ?? 'No QR'}
+                                            </div>
+                                        {/if}
+                                    </div>
+
+                                    <div class="flex-1 space-y-3 w-full">
+                                        <div>
+                                            <div class="text-sm opacity-70">Payment for</div>
+                                            <div class="font-bold text-lg">{pq.payer}</div>
+                                            <div class="font-mono text-xl">
+                                                {pq.amount.toLocaleString()} VND
+                                            </div>
+                                        </div>
+
+                                        <div class="flex gap-2 flex-wrap">
+                                            {#if pq.emvPayload}
+                                                <button
+                                                    class="btn btn-sm"
+                                                    on:click={() => copyToClipboard(pq.emvPayload!)}
+                                                >
+                                                    Copy Payload
+                                                </button>
+                                            {/if}
+                                            {#if pq.qrDataUrl}
+                                                <button
+                                                    class="btn btn-sm btn-outline"
+                                                    on:click={() =>
+                                                        downloadPng(
+                                                            pq.qrDataUrl!,
+                                                            `qr-${pq.payer.replace(/\s+/g, '-')}-${pq.amount}.png`
+                                                        )}
+                                                >
+                                                    Download PNG
+                                                </button>
+                                            {/if}
+                                            {#if pq.emvPayload}
+                                                {#await Promise.resolve(LZString.compressToEncodedURIComponent(pq.emvPayload)) then d}
+                                                    <a
+                                                        href={`/qr?d=${d}`}
+                                                        class="btn btn-sm btn-neutral"
+                                                    >
+                                                        Open QR page
+                                                    </a>
+                                                    <button
+                                                        class="btn btn-sm btn-ghost"
+                                                        on:click={() =>
+                                                            copyToClipboard(
+                                                                `${location.origin}/qr?d=${d}`
+                                                            )}
+                                                    >
+                                                        Copy QR link
+                                                    </button>
+                                                {/await}
+                                            {/if}
+                                        </div>
+
+                                        {#if pq.emvPayload}
+                                            <div
+                                                class="collapse collapse-plus bg-base-200 rounded-lg text-xs"
+                                            >
+                                                <input type="checkbox" />
+                                                <div class="collapse-title min-h-0 py-2 px-4">
+                                                    Debug: EMV payload
+                                                </div>
+                                                <div class="collapse-content">
+                                                    <pre
+                                                        class="whitespace-pre-wrap break-all pt-2 font-mono opacity-70">{pq.emvPayload}</pre>
+                                                </div>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     {/each}
-
-                    <div style="display:flex; gap:8px; margin-top:8px;">
-                        <input
-                            placeholder="New payer name"
-                            bind:value={newPayerName}
-                            style="flex:1; padding:6px;"
-                        />
-                        <button on:click={addPayer}>Add</button>
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <h2>Quick totals</h2>
-                <div style="padding:10px; border:1px solid #eee; border-radius:8px;">
-                    <div>
-                        <strong>Items subtotal:</strong>
-                        {computeItemsSubtotal().toLocaleString()} VND
-                    </div>
-                    <div>
-                        <strong>Extras net:</strong>
-                        {computeExtrasNet().toLocaleString()} VND
-                    </div>
-                    <div style="margin-top:8px; font-size:18px;">
-                        <strong>Grand total:</strong>
-                        {(computeItemsSubtotal() + computeExtrasNet()).toLocaleString()} VND
-                    </div>
                 </div>
             </div>
         </section>
 
-        <section style="margin-top:18px;">
-            <h2>Assign items</h2>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead>
-                        <tr>
-                            <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">
-                                Item
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
-                            >
-                                Unit (VND)
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
-                            >
-                                Qty
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
-                            >
-                                Assigned to
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom:1px solid #ddd; padding:8px;"
-                            >
-                                Line (VND)
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each shared.items as it (it.id)}
-                            <tr>
-                                <td style="padding:8px; border-bottom:1px solid #f0f0f0;"
-                                    >{it.name}</td
-                                >
-                                <td
-                                    style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:right;"
-                                    >{it.unitPrice.toLocaleString()}</td
-                                >
-                                <td
-                                    style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:right;"
-                                    >{it.qty}</td
-                                >
-                                <td
-                                    style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:right;"
-                                >
-                                    {#if config.mode === 'individual'}
-                                        <div
-                                            style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;"
-                                        >
-                                            {#each config.payers as p (p)}
-                                                <label
-                                                    style="display:flex; gap:8px; align-items:center; font-size:13px;"
-                                                >
-                                                    <span>{p}</span>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={(
-                                                            config.assignments?.[it.id] ?? []
-                                                        ).includes(p)}
-                                                        on:change={e =>
-                                                            toggleItemPayer(
-                                                                it.id,
-                                                                p,
-                                                                (
-                                                                    e.currentTarget as HTMLInputElement
-                                                                ).checked
-                                                            )}
-                                                    />
-                                                </label>
-                                            {/each}
-                                        </div>
-                                    {:else}
-                                        <span>— (even split)</span>
-                                    {/if}
-                                </td>
-                                <td
-                                    style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:right;"
-                                >
-                                    {(it.qty * it.unitPrice).toLocaleString()}
-                                </td>
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
-
-            <div style="margin-top:12px;">
-                <button on:click={recomputeAndSave} style="padding:8px 12px;">
-                    Recompute split (save to URL)
-                </button>
-                <span style="opacity:0.8; margin-left:8px;">
-                    This will update the link to share to your friends.
-                </span>
-            </div>
-        </section>
-
-        <section style="margin-top:18px;">
-            <h2>Per-payer QR codes</h2>
-
-            {#if payerQrs.length === 0}
-                <div style="padding:10px; border:1px dashed #ddd; border-radius:8px;">
-                    Generating QRs... (QRs are hidden by default — click a payer to expand)
-                </div>
-            {/if}
-
-            {#each payerQrs as pq (pq.payer)}
-                <details
-                    style="margin-top:12px; border:1px solid #eee; border-radius:8px; padding:0;"
-                >
-                    <summary
-                        style="list-style:none; cursor:pointer; padding:12px; display:flex; justify-content:space-between; align-items:center;"
-                    >
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <strong>{pq.payer}</strong>
-                            <span style="opacity:0.8;">• {pq.amount.toLocaleString()} VND</span>
-                        </div>
-                        <div style="font-size:13px; opacity:0.8;">Click to view QR</div>
-                    </summary>
-
-                    <div style="padding:12px; display:flex; gap:12px; align-items:center;">
-                        <div style="width:220px;">
-                            {#if pq.qrDataUrl}
-                                <img
-                                    src={pq.qrDataUrl}
-                                    alt="QR"
-                                    style="width:200px; height:200px; display:block;"
-                                />
-                            {:else}
-                                <div
-                                    style="width:200px; height:200px; display:flex; align-items:center; justify-content:center; background:#fafafa; border:1px dashed #ddd;"
-                                >
-                                    {pq.error ?? 'No QR'}
-                                </div>
-                            {/if}
-                        </div>
-
-                        <div style="flex:1;">
-                            <div style="margin-bottom:6px;"><strong>{pq.payer}</strong></div>
-                            <div style="margin-bottom:6px;">
-                                Amount: {pq.amount.toLocaleString()} VND
-                            </div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                {#if pq.emvPayload}
-                                    <button on:click={() => copyToClipboard(pq.emvPayload!)}>
-                                        Copy EMV payload
-                                    </button>
-                                {/if}
-                                {#if pq.qrDataUrl}
-                                    <button
-                                        on:click={() =>
-                                            downloadPng(
-                                                pq.qrDataUrl!,
-                                                `qr-${pq.payer.replace(/\s+/g, '-')}-${pq.amount}.png`
-                                            )}
-                                    >
-                                        Download PNG
-                                    </button>
-                                {/if}
-                                {#if pq.emvPayload}
-                                    {#await Promise.resolve(LZString.compressToEncodedURIComponent(pq.emvPayload)) then d}
-                                        <a
-                                            href={`/qr?d=${d}`}
-                                            style="padding:8px 12px; border:1px solid #ccc; border-radius:6px; text-decoration:none;"
-                                            >Open QR page</a
-                                        >
-                                        <button
-                                            on:click={() =>
-                                                copyToClipboard(`${location.origin}/qr?d=${d}`)}
-                                        >
-                                            Copy QR-only link
-                                        </button>
-                                    {/await}
-                                {/if}
-                            </div>
-
-                            {#if pq.emvPayload}
-                                <details style="margin-top:8px;">
-                                    <summary>Debug: EMV payload</summary>
-                                    <pre
-                                        style="white-space:pre-wrap; word-break:break-all; margin-top:6px;">{pq.emvPayload}</pre>
-                                </details>
-                            {/if}
-                        </div>
-                    </div>
-                </details>
-            {/each}
-        </section>
-
-        <footer style="margin-top:18px; opacity:0.75; font-size:13px;">
+        <footer class="text-center opacity-60 text-xs mb-12">
             This is a serverless link. The recomputed link (with config) persists how the owner
             assigned items.
         </footer>
     {/if}
 </main>
-
-<style>
-    button {
-        padding: 8px 12px;
-        border: 1px solid #ccc;
-        background: #fff;
-        cursor: pointer;
-        border-radius: 6px;
-    }
-    button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    select,
-    input {
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        padding: 6px;
-    }
-
-    /* Improve details/summary appearance */
-    details summary::-webkit-details-marker {
-        display: none;
-    }
-    details summary {
-        outline: none;
-    }
-    details[open] summary {
-        background: #fafafa;
-        border-bottom: 1px solid #eee;
-    }
-</style>

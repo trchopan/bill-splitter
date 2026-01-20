@@ -49,82 +49,109 @@
     <title>Pay by QR</title>
 </svelte:head>
 
-<main style="max-width: 820px; margin: 0 auto; padding: 24px;">
-    <h1>QR</h1>
+<main class="container mx-auto max-w-2xl p-6">
+    <h1 class="mb-6 text-3xl font-bold">QR Payment</h1>
 
     {#if !data.ok}
-        <div
-            style="margin-top: 12px; padding: 12px; border: 1px solid #ffb4b4; background: #fff5f5;"
-        >
-            <strong>Invalid link</strong>
-            <ul style="margin: 8px 0 0 18px;">
-                {#each data.errors as e (e)}
-                    <li>{e}</li>
-                {/each}
-            </ul>
-            <p style="margin-top: 10px; opacity: 0.85;">
-                Example: <code>/qr?d=&lt;base64url(emv_payload)&gt;</code>
-            </p>
+        <div class="alert alert-error shadow-lg">
+            <div>
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="stroke-current flex-shrink-0 h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    ><path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    /></svg
+                >
+                <div>
+                    <h3 class="font-bold">Invalid link</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        {#each data.errors as e (e)}
+                            <li>{e}</li>
+                        {/each}
+                    </ul>
+                    <p class="mt-2 opacity-85 text-xs">
+                        Example: <code class="badge badge-neutral font-mono"
+                            >/qr?d=&lt;base64url(emv_payload)&gt;</code
+                        >
+                    </p>
+                </div>
+            </div>
         </div>
     {:else}
         {#if error}
-            <div
-                style="margin-top: 12px; padding: 12px; border: 1px solid #ffb4b4; background: #fff5f5;"
-            >
-                {error}
+            <div class="alert alert-error shadow-lg mb-6">
+                <div>
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="stroke-current flex-shrink-0 h-6 w-6"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        /></svg
+                    >
+                    <span>{error}</span>
+                </div>
             </div>
         {/if}
 
         {#if qrDataUrl && data.payload}
-            <div
-                style="margin-top: 16px; display:flex; gap: 16px; align-items:flex-start; flex-wrap: wrap;"
-            >
-                <div
-                    style="border:1px solid #eee; border-radius: 10px; padding: 10px; width: fit-content;"
-                >
-                    <img
-                        src={qrDataUrl}
-                        alt="QR"
-                        style="display:block; width: 260px; height: 260px;"
-                    />
-                </div>
+            <div class="card bg-base-100 shadow-xl border border-base-200">
+                <div class="card-body">
+                    <div class="flex flex-col md:flex-row gap-8 items-start">
+                        <div
+                            class="bg-white p-4 rounded-xl border border-base-300 shadow-sm mx-auto md:mx-0"
+                        >
+                            <img src={qrDataUrl} alt="QR" class="w-64 h-64 block" />
+                        </div>
 
-                <div style="flex: 1; min-width: 280px;">
-                    <div style="display:flex; gap: 10px; flex-wrap: wrap;">
-                        <button on:click={() => copyToClipboard(data.payload!)}>
-                            Copy EMV payload
-                        </button>
-                        <button on:click={() => downloadPng(qrDataUrl!, 'bill.png')}>
-                            Download PNG
-                        </button>
+                        <div class="flex-1 w-full space-y-4">
+                            <div>
+                                <h2 class="card-title text-xl mb-1">Scan to Pay</h2>
+                                <p class="text-sm opacity-70">
+                                    Use your banking app to scan this QR code.
+                                </p>
+                            </div>
+
+                            <div class="flex flex-wrap gap-3">
+                                <button
+                                    class="btn btn-primary"
+                                    on:click={() => copyToClipboard(data.payload!)}
+                                >
+                                    Copy EMV payload
+                                </button>
+                                <button
+                                    class="btn btn-outline"
+                                    on:click={() => downloadPng(qrDataUrl!, 'bill.png')}
+                                >
+                                    Download PNG
+                                </button>
+                            </div>
+
+                            <div
+                                class="collapse collapse-arrow bg-base-200 border border-base-300 rounded-box mt-4"
+                            >
+                                <input type="checkbox" />
+                                <div class="collapse-title font-medium text-sm">
+                                    Debug: EMV payload
+                                </div>
+                                <div class="collapse-content">
+                                    <pre
+                                        class="whitespace-pre-wrap break-all text-xs font-mono p-2">{data.payload}</pre>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                    <details style="margin-top: 12px;">
-                        <summary>Debug: EMV payload</summary>
-                        <pre
-                            style="white-space: pre-wrap; word-break: break-all; margin-top: 8px;">{data.payload}</pre>
-                    </details>
                 </div>
             </div>
         {/if}
     {/if}
 </main>
-
-<style>
-    button {
-        padding: 8px 12px;
-        border: 1px solid #ccc;
-        background: #fff;
-        cursor: pointer;
-        border-radius: 6px;
-    }
-    button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    code {
-        background: #f6f6f6;
-        padding: 2px 6px;
-        border-radius: 6px;
-    }
-</style>

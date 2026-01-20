@@ -171,62 +171,65 @@ Now extract the receipt into the JSON format exactly.`;
     <title>Bill Split - Create</title>
 </svelte:head>
 
-<!-- svelte-ignore a11y_label_has_associated_control -->
-<main style="max-width: 980px; margin: 0 auto; padding: 24px;">
-    <h1>Create a Bill (Owner)</h1>
+<main class="container mx-auto max-w-4xl p-6">
+    <h1 class="mb-6 text-3xl font-bold">Create a Bill (Owner)</h1>
 
-    <section style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;">
-        <h2>1) Owner payment info</h2>
+    <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-xl">1) Owner payment info</h2>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div>
-                <label style="display:block; font-weight: 600; margin-bottom: 6px;"> Bank </label>
-
-                <select bind:value={ownerBank} style="width: 100%; padding: 8px;">
-                    <option value="" disabled selected> Select a bank </option>
-
-                    {#each BANKS as bank (bank)}
-                        <option value={bank.code}>
-                            {bank.shortName} ({bank.code})
-                        </option>
-                    {/each}
-                </select>
-
-                {#if ownerBank}
-                    <div style="margin-top: 6px; font-size: 13px; opacity: 0.8;">
-                        {BANKS.find(b => b.code === ownerBank)?.name}
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="form-control w-full">
+                    <div class="label">
+                        <span class="label-text font-semibold">Bank</span>
                     </div>
-                {/if}
+                    <select bind:value={ownerBank} class="select select-bordered w-full">
+                        <option value="" disabled selected> Select a bank </option>
+
+                        {#each BANKS as bank (bank)}
+                            <option value={bank.code}>
+                                {bank.shortName} ({bank.code})
+                            </option>
+                        {/each}
+                    </select>
+                    {#if ownerBank}
+                        <div class="label">
+                            <span class="label-text-alt opacity-80"
+                                >{BANKS.find(b => b.code === ownerBank)?.name}</span
+                            >
+                        </div>
+                    {/if}
+                </div>
+
+                <div class="form-control w-full">
+                    <div class="label">
+                        <span class="label-text font-semibold">Account number</span>
+                    </div>
+                    <input
+                        bind:value={ownerAccountNumber}
+                        placeholder="digits only"
+                        class="input input-bordered w-full"
+                    />
+                </div>
             </div>
 
-            <div>
-                <label style="display:block; font-weight: 600; margin-bottom: 6px;">
-                    Account number
-                </label>
-                <input
-                    bind:value={ownerAccountNumber}
-                    placeholder="digits only"
-                    style="width: 100%; padding: 8px;"
-                />
-            </div>
-        </div>
-
-        {#if ownerBank.trim() && ownerAccountNumber.replace(/\s+/g, '').length}
-            <details style="margin-top: 10px;">
-                <summary style="cursor: pointer; font-weight: 600;">Bookmark this setup</summary>
-                <div
-                    style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;"
-                >
-                    <div style="opacity: 0.85; margin-bottom: 8px;">
-                        Save this link so next time your bank info is pre-filled.
-                    </div>
-
-                    {#key ownerBank + ownerAccountNumber}
-                        <input readonly value={bookmarkUrl} style="width: 100%; padding: 8px;" />
-                    {/key}
-
-                    <div style="margin-top: 8px; display:flex; gap: 8px; flex-wrap: wrap;">
+            {#if ownerBank.trim() && ownerAccountNumber.replace(/\s+/g, '').length}
+                <div class="collapse collapse-arrow bg-base-200 mt-4 rounded-box">
+                    <input type="checkbox" />
+                    <div class="collapse-title font-semibold">Bookmark this setup</div>
+                    <div class="collapse-content">
+                        <p class="mb-2 text-sm opacity-80">
+                            Save this link so next time your bank info is pre-filled.
+                        </p>
+                        {#key ownerBank + ownerAccountNumber}
+                            <input
+                                readonly
+                                value={bookmarkUrl}
+                                class="input input-bordered input-sm mb-3 w-full"
+                            />
+                        {/key}
                         <button
+                            class="btn btn-sm btn-outline"
                             on:click={() => {
                                 navigator.clipboard.writeText(bookmarkUrl);
                             }}
@@ -235,228 +238,214 @@ Now extract the receipt into the JSON format exactly.`;
                         </button>
                     </div>
                 </div>
-            </details>
-        {/if}
-    </section>
-
-    <section style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;">
-        <h2>2) Extract bill JSON using AI</h2>
-
-        <p style="margin: 0; opacity: 0.85;">
-            Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this prompt, and
-            make sure the AI outputs
-            <strong>JSON only</strong>. Then paste the result below.
-        </p>
-
-        <div
-            style="margin-top: 10px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap;"
-        >
-            <button on:click={() => copyText(AI_PROMPT)}>Copy AI prompt</button>
-            <span style="font-size: 13px; opacity: 0.75;"> Multimodal • Image → JSON </span>
-        </div>
-
-        <details style="margin-top: 10px;">
-            <summary style="cursor: pointer; font-weight: 600;">Show prompt</summary>
-            <pre
-                style="margin-top: 10px; padding: 12px; background:#f7f7f7; border-radius: 8px; white-space: pre-wrap;">{AI_PROMPT}</pre>
-        </details>
-
-        <h2 style="margin: 16px 0 8px 0;">Paste AI JSON</h2>
-
-        <p style="margin: 8px 0; opacity: 0.85;">
-            Paste the JSON produced by your multimodal AI using our prompt. Then click “Parse &
-            Validate”.
-        </p>
-
-        <textarea
-            bind:value={rawJson}
-            rows="14"
-            style="width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 13px; padding: 12px;"
-        ></textarea>
-
-        <div style="display: flex; gap: 12px; align-items: center; margin-top: 12px;">
-            <button on:click={onParse}>Parse & Validate</button>
-            {#if parsed}
-                <span style="color: #0a7a2f;">Valid ✅</span>
             {/if}
         </div>
+    </div>
 
-        {#if validationErrors.length > 0}
-            <div
-                style="margin-top: 12px; padding: 12px; border: 1px solid #ffb4b4; background: #fff5f5;"
-            >
-                <strong>Fix these issues:</strong>
-                <ul>
-                    {#each validationErrors as err (err)}
-                        <li>{err}</li>
-                    {/each}
-                </ul>
+    <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-xl">2) Extract bill JSON using AI</h2>
+
+            <p class="text-sm opacity-85">
+                Upload your receipt image to your AI (ChatGPT / Claude / etc.), paste this prompt,
+                and make sure the AI outputs
+                <strong>JSON only</strong>. Then paste the result below.
+            </p>
+
+            <div class="mt-2 flex flex-wrap items-center gap-3">
+                <button class="btn btn-secondary btn-sm" on:click={() => copyText(AI_PROMPT)}
+                    >Copy AI prompt</button
+                >
+                <span class="badge badge-ghost">Multimodal • Image → JSON</span>
             </div>
-        {/if}
-    </section>
 
-    {#if parsed}
-        <section
-            style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 10px;"
-        >
-            <h2>2) Review</h2>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                    <label style="display:block; font-weight: 600; margin-bottom: 6px;"
-                        >Bill name (used as transaction note)</label
-                    >
-                    <input
-                        value={parsed.billName}
-                        on:input={e =>
-                            (parsed = parsed
-                                ? {...parsed, billName: (e.currentTarget as HTMLInputElement).value}
-                                : parsed)}
-                        style="width: 100%; padding: 8px;"
-                    />
+            <div class="collapse collapse-arrow bg-base-200 mt-4 rounded-box">
+                <input type="checkbox" />
+                <div class="collapse-title font-semibold">Show prompt</div>
+                <div class="collapse-content">
+                    <pre class="bg-base-300 whitespace-pre-wrap rounded-lg p-3 text-xs">{AI_PROMPT}</pre>
                 </div>
+            </div>
 
-                <div style="opacity: 0.9;">
-                    <div><strong>Items total:</strong> {formatVnd(itemsTotal)} VND</div>
-                    {#if parsed.extras}
-                        <div><strong>Extras net:</strong> {formatVnd(extrasNet)} VND</div>
-                    {/if}
+            <div class="divider"></div>
+
+            <h3 class="mb-2 text-lg font-semibold">Paste AI JSON</h3>
+            <p class="mb-2 text-sm opacity-85">
+                Paste the JSON produced by your multimodal AI using our prompt. Then click “Parse &
+                Validate”.
+            </p>
+
+            <textarea
+                bind:value={rawJson}
+                rows="14"
+                class="textarea textarea-bordered w-full font-mono text-sm"
+            ></textarea>
+
+            <div class="mt-4 flex items-center gap-3">
+                <button class="btn btn-primary" on:click={onParse}>Parse & Validate</button>
+                {#if parsed}
+                    <span class="badge badge-success gap-2">Valid ✅</span>
+                {/if}
+            </div>
+
+            {#if validationErrors.length > 0}
+                <div class="alert alert-error mt-4">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-6 w-6 shrink-0 stroke-current"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        /></svg
+                    >
                     <div>
-                        <strong>Computed bill total:</strong>
-                        {formatVnd(computedBillTotal)} VND
+                        <h3 class="font-bold">Fix these issues:</h3>
+                        <ul class="list-inside list-disc text-sm">
+                            {#each validationErrors as err (err)}
+                                <li>{err}</li>
+                            {/each}
+                        </ul>
                     </div>
                 </div>
-            </div>
-
-            <div style="margin-top: 16px; overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr>
-                            <th
-                                style="text-align:left; border-bottom: 1px solid #ddd; padding: 8px;"
-                            >
-                                Item
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom: 1px solid #ddd; padding: 8px;"
-                            >
-                                Qty
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom: 1px solid #ddd; padding: 8px;"
-                            >
-                                Unit (VND)
-                            </th>
-                            <th
-                                style="text-align:right; border-bottom: 1px solid #ddd; padding: 8px;"
-                            >
-                                Line (VND)
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each parsed.items as it (it)}
-                            <tr>
-                                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">
-                                    {it.name}
-                                </td>
-                                <td
-                                    style="padding: 8px; border-bottom: 1px solid #f0f0f0; text-align:right;"
-                                >
-                                    {it.qty}
-                                </td>
-                                <td
-                                    style="padding: 8px; border-bottom: 1px solid #f0f0f0; text-align:right;"
-                                >
-                                    {formatVnd(it.unitPrice)}
-                                </td>
-                                <td
-                                    style="padding: 8px; border-bottom: 1px solid #f0f0f0; text-align:right;"
-                                >
-                                    {formatVnd(it.qty * it.unitPrice)}
-                                </td>
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
-
-            {#if parsed.extras}
-                <div style="margin-top: 12px; opacity: 0.9;">
-                    <strong>Extras:</strong>
-                    Tax: {formatVnd(toIntVnd(parsed.extras.tax))}, Tip: {formatVnd(
-                        toIntVnd(parsed.extras.tip)
-                    )}, Discount: {formatVnd(toIntVnd(parsed.extras.discount))}
-                </div>
             {/if}
-        </section>
+        </div>
+    </div>
 
-        <section style="margin-top: 24px;">
-            <div style="display: flex; gap: 12px; align-items: center; margin-top: 12px;">
-                <button on:click={onGenerateLink} disabled={!canGenerate}>
+    {#if parsed}
+        <div class="card bg-base-100 mb-6 border border-base-200 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title text-xl">3) Review</h2>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="form-control w-full">
+                        <div class="label">
+                            <span class="label-text font-semibold"
+                                >Bill name (transaction note)</span
+                            >
+                        </div>
+                        <input
+                            value={parsed.billName}
+                            class="input input-bordered w-full"
+                            on:input={e =>
+                                (parsed = parsed
+                                    ? {
+                                          ...parsed,
+                                          billName: (e.currentTarget as HTMLInputElement).value,
+                                      }
+                                    : parsed)}
+                        />
+                    </div>
+
+                    <div class="bg-base-200 rounded-lg p-3 text-sm">
+                        <div class="flex justify-between">
+                            <span>Items total:</span>
+                            <span class="font-medium">{formatVnd(itemsTotal)} VND</span>
+                        </div>
+                        {#if parsed.extras}
+                            <div class="flex justify-between">
+                                <span>Extras net:</span>
+                                <span class="font-medium">{formatVnd(extrasNet)} VND</span>
+                            </div>
+                        {/if}
+                        <div class="mt-2 flex justify-between border-t border-base-content/20 pt-2">
+                            <span class="font-bold">Computed total:</span>
+                            <span class="font-bold text-primary"
+                                >{formatVnd(computedBillTotal)} VND</span
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mt-4">
+                    <table class="table table-zebra w-full">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="text-right">Qty</th>
+                                <th class="text-right">Unit (VND)</th>
+                                <th class="text-right">Line (VND)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each parsed.items as it (it)}
+                                <tr>
+                                    <td>{it.name}</td>
+                                    <td class="text-right">{it.qty}</td>
+                                    <td class="text-right">{formatVnd(it.unitPrice)}</td>
+                                    <td class="text-right font-medium"
+                                        >{formatVnd(it.qty * it.unitPrice)}</td
+                                    >
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                </div>
+
+                {#if parsed.extras}
+                    <div class="alert alert-ghost mt-4 text-sm">
+                        <div>
+                            <span class="font-bold">Extras:</span>
+                            Tax: {formatVnd(toIntVnd(parsed.extras.tax))}, Tip: {formatVnd(
+                                toIntVnd(parsed.extras.tip)
+                            )}, Discount: {formatVnd(toIntVnd(parsed.extras.discount))}
+                        </div>
+                    </div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="mt-8 mb-12">
+            <div class="flex items-center gap-3">
+                <button
+                    class="btn btn-primary btn-lg"
+                    on:click={onGenerateLink}
+                    disabled={!canGenerate}
+                >
                     Generate share link
                 </button>
                 {#if shareUrl}
-                    <span style="color:#0a7a2f;">Link ready ✅</span>
+                    <div class="badge badge-success badge-lg gap-2">Link ready ✅</div>
                 {/if}
             </div>
 
             {#if shareUrl}
-                <div
-                    style="margin-top: 12px; padding: 12px; border: 1px solid #d8e7ff; background: #f5f9ff;"
-                >
-                    <div style="font-weight: 700; margin-bottom: 6px;">
-                        Share this link with friends:
-                    </div>
-                    <input readonly value={shareUrl} style="width: 100%; padding: 8px;" />
-                    <div style="margin-top: 8px; display: flex; gap: 8px;">
-                        <button
-                            on:click={() => {
-                                navigator.clipboard.writeText(shareUrl ?? '');
-                            }}
-                        >
-                            Copy link
-                        </button>
+                <div class="alert alert-info mt-6 shadow-lg">
+                    <div class="w-full">
+                        <h3 class="font-bold">Share this link with friends:</h3>
+                        <input
+                            readonly
+                            value={shareUrl}
+                            class="input input-bordered w-full mt-2 text-sm"
+                        />
+                        <div class="mt-3 flex gap-2">
+                            <button
+                                class="btn btn-sm btn-outline bg-base-100"
+                                on:click={() => {
+                                    navigator.clipboard.writeText(shareUrl ?? '');
+                                }}
+                            >
+                                Copy link
+                            </button>
 
-                        <a
-                            href={shareUrl}
-                            style="display:inline-block; padding: 8px 12px; border: 1px solid #ccc; text-decoration: none;"
-                        >
-                            Open bill page
-                        </a>
-                    </div>
+                            <a href={shareUrl} class="btn btn-sm btn-neutral"> Open bill page </a>
+                        </div>
 
-                    <details style="margin-top: 10px;">
-                        <summary>Debug: payload preview</summary>
-                        <pre style="white-space: pre-wrap;">{JSON.stringify(
-                                sharePayload,
-                                null,
-                                2
-                            )}</pre>
-                    </details>
+                        <div class="collapse collapse-arrow bg-base-100/50 mt-4 rounded-box">
+                            <input type="checkbox" />
+                            <div class="collapse-title text-sm font-medium">
+                                Debug: payload preview
+                            </div>
+                            <div class="collapse-content">
+                                <pre class="text-xs">{JSON.stringify(sharePayload, null, 2)}</pre>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             {/if}
-        </section>
+        </div>
     {/if}
 </main>
-
-<style>
-    button {
-        padding: 8px 12px;
-        border: 1px solid #ccc;
-        background: #fff;
-        cursor: pointer;
-    }
-    button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    input {
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    textarea {
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-</style>
