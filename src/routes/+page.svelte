@@ -381,8 +381,8 @@ Now extract the receipt into the JSON format exactly.`;
                     <div class="collapse-title font-semibold">Show prompt</div>
                     <div class="collapse-content">
                         <pre
-                            class="overflow-x-auto rounded-lg bg-base-300 p-3 text-xs whitespace-pre-wrap">
-{AI_PROMPT}</pre>
+                            class="overflow-x-auto rounded-lg bg-base-300 p-3
+									text-xs whitespace-pre-wrap">{AI_PROMPT}</pre>
                     </div>
                 </div>
 
@@ -412,13 +412,14 @@ Now extract the receipt into the JSON format exactly.`;
                             class="h-6 w-6 shrink-0 stroke-current"
                             fill="none"
                             viewBox="0 0 24 24"
-                            ><path
+                        >
+                            <path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
                                 d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            /></svg
-                        >
+                            />
+                        </svg>
                         <div>
                             <h3 class="font-bold">Fix these issues:</h3>
                             <ul class="list-inside list-disc text-sm">
@@ -483,36 +484,38 @@ Now extract the receipt into the JSON format exactly.`;
 
                 <!-- Extras: 1 col on mobile, 3 cols on md -->
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div class="form-control">
-                        <div class="label"><span class="label-text">Tax</span></div>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tax</legend>
                         <input
-                            class="input-bordered input"
+                            class="input-bordered input w-full"
                             inputmode="numeric"
                             value={String(parsed.extras?.tax ?? 0)}
                             on:input={e =>
                                 setExtra('tax', (e.currentTarget as HTMLInputElement).value)}
                         />
-                    </div>
-                    <div class="form-control">
-                        <div class="label"><span class="label-text">Tip</span></div>
+                    </fieldset>
+
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tip</legend>
                         <input
-                            class="input-bordered input"
+                            class="input-bordered input w-full"
                             inputmode="numeric"
                             value={String(parsed.extras?.tip ?? 0)}
                             on:input={e =>
                                 setExtra('tip', (e.currentTarget as HTMLInputElement).value)}
                         />
-                    </div>
-                    <div class="form-control">
-                        <div class="label"><span class="label-text">Discount</span></div>
+                    </fieldset>
+
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Discount</legend>
                         <input
-                            class="input-bordered input"
+                            class="input-bordered input w-full"
                             inputmode="numeric"
                             value={String(parsed.extras?.discount ?? 0)}
                             on:input={e =>
                                 setExtra('discount', (e.currentTarget as HTMLInputElement).value)}
                         />
-                    </div>
+                    </fieldset>
                 </div>
 
                 <div class="divider my-5"></div>
