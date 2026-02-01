@@ -4,7 +4,6 @@
     import {generateQrEmvPayload} from '$lib/emvcode';
     import LZString from 'lz-string';
     import {onMount} from 'svelte';
-    import {SvelteURLSearchParams} from 'svelte/reactivity';
 
     import {
         computeItemsSubtotal,
@@ -236,7 +235,8 @@
 
     function recomputeAndSave() {
         if (!shared) return;
-        const params = new SvelteURLSearchParams(window.location.search);
+        // eslint-disable-next-line svelte/prefer-svelte-reactivity
+        const params = new URLSearchParams(window.location.search);
         params.set('b', params.get('b') ?? '');
         params.set('c', makeConfigParam());
         newUrl = `${location.origin}${location.pathname}?${params.toString()}`;
