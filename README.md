@@ -26,8 +26,7 @@ A SvelteKit application designed to simplify splitting bills and facilitating pa
 
 ### Prerequisites
 
-- Node.js (LTS version recommended)
-- npm
+- Bun
 
 ### Installation
 
@@ -40,7 +39,7 @@ A SvelteKit application designed to simplify splitting bills and facilitating pa
 
 2.  Install dependencies:
     ```bash
-    npm install
+    bun install
     ```
 
 ### Development
@@ -48,7 +47,7 @@ A SvelteKit application designed to simplify splitting bills and facilitating pa
 Start the development server:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 The application will be available at `http://localhost:5173`.
@@ -58,10 +57,10 @@ The application will be available at `http://localhost:5173`.
 To create a production version of the app:
 
 ```bash
-npm run build
+bun run build
 ```
 
-You can preview the production build with `npm run preview`.
+You can preview the production build with `bun run preview`.
 
 ## Usage Guide
 
@@ -85,4 +84,3 @@ You can preview the production build with `npm run preview`.
 [MIT](https://opensource.org/licenses/MIT)
 
 Copyright (c) 2025-present, Quang Tran.
-

@@ -599,10 +599,9 @@
                                     </button>
                                     <a
                                         href={newUrl}
-                                        target="_blank"
                                         class="btn flex-1 btn-sm btn-neutral sm:flex-none"
                                     >
-                                        Open Link
+                                        Reload
                                     </a>
                                 </div>
                             </div>

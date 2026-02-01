@@ -89,7 +89,9 @@ describe('bill/+page.svelte', () => {
         await expect.element(page.getByTestId('payer-amount-Alice')).toHaveTextContent('1,001 VND');
 
         // Click Bob checkbox for the only item (adds Bob to split)
-        const bobBox = page.getByRole('checkbox', {name: 'Bob'});
+        const bobBox = page
+            .getByRole('row', {name: /Odd Item/})
+            .getByRole('checkbox', {name: 'Bob'});
         await userEvent.click(bobBox);
 
         // With remainder to first payer (Alice first): 1001 => 501 / 500
