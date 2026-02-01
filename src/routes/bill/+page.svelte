@@ -255,6 +255,13 @@
 </svelte:head>
 
 <main class="container mx-auto w-full max-w-5xl px-4 pt-5 pb-10 sm:px-6">
+    <a
+        href="/"
+        class="mb-4 inline-flex items-center gap-1 text-sm font-medium opacity-60 transition-opacity hover:opacity-100"
+    >
+        &larr; bill.chop.dev
+    </a>
+
     {#if !data.ok}
         <div class="alert alert-error shadow-lg">
             <div>

@@ -50,6 +50,13 @@
 </svelte:head>
 
 <main class="container mx-auto w-full max-w-2xl px-4 pt-5 pb-10 sm:px-6">
+    <a
+        href="/"
+        class="mb-4 inline-flex items-center gap-1 text-sm font-medium opacity-60 transition-opacity hover:opacity-100"
+    >
+        &larr; bill.chop.dev
+    </a>
+
     <!-- Header -->
     <div class="mb-5 flex flex-col gap-2 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
         <h1 class="text-2xl font-bold sm:text-3xl">QR Payment</h1>
