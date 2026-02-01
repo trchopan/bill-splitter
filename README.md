@@ -1,5 +1,7 @@
 # Bill Splitter
 
+GitHub: [https://github.com/trchopan/bill-splitter](https://github.com/trchopan/bill-splitter)
+
 A SvelteKit application designed to simplify splitting bills and facilitating payments via Payment QR code (EMVCo) standard. This tool allows users to easily convert receipt data into a digital bill, share it with friends, and generate payment QR codes for seamless bank transfers.
 
 ## Features

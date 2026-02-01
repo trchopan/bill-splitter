@@ -257,7 +257,16 @@ Now extract the receipt into the JSON format exactly.`;
 <main class="container mx-auto w-full max-w-4xl px-4 pt-5 pb-10 sm:px-6">
     <!-- Header -->
     <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <h1 class="text-2xl font-bold sm:text-3xl">Create a Bill (Owner)</h1>
+        <div>
+            <h1 class="text-2xl font-bold sm:text-3xl">Create a Bill (Owner)</h1>
+            <a
+                href="https://github.com/trchopan/bill-splitter"
+                target="_blank"
+                class="link text-sm link-hover opacity-50"
+            >
+                GitHub
+            </a>
+        </div>
 
         <!-- Tabs: stack on mobile, inline on desktop -->
         <div class="tabs-boxed tabs w-full sm:w-auto">
