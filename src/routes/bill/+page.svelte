@@ -302,11 +302,35 @@
                 </div>
             </div>
 
-            <div class="card w-full border border-base-200 bg-base-100 p-4 shadow-sm lg:w-auto">
-                <div class="text-sm opacity-85">
-                    <div class="mb-1 font-semibold">Pay to:</div>
+            <div
+                class="flex w-full items-center gap-3 rounded-lg bg-primary px-5 py-2 text-primary-content shadow-lg sm:w-auto"
+            >
+                <div
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="h-5 w-5"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z"
+                        />
+                    </svg>
+                </div>
+                <div class="min-w-0 flex-1">
                     <div
-                        class="wrap-break-words rounded bg-base-200 p-2 font-mono text-xs leading-relaxed"
+                        class="mb-0.5 text-[10px] leading-none font-bold tracking-wider uppercase opacity-80"
+                    >
+                        Pay to
+                    </div>
+                    <div
+                        class="truncate font-mono text-base leading-none font-bold"
                         data-testid="pay-to"
                     >
                         {shared.owner.bank} • {shared.owner.accountNumber}
